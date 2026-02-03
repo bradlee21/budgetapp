@@ -6,8 +6,10 @@ import { useEffect, useMemo, useState } from "react";
 
 type Category = {
   id: string;
+  user_id?: string;
   group_name: "income" | "expense" | "debt" | "misc";
   name: string;
+  parent_id: string | null;
 };
 
 type CreditCard = {
@@ -38,6 +40,10 @@ function toMonthKey(d: Date) {
   return firstDayOfMonth(d).toISOString().slice(0, 10);
 }
 
+function normalizeName(s: string) {
+  return s.trim().replace(/\s+/g, " ");
+}
+
 export default function PlanPage() {
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -58,6 +64,7 @@ export default function PlanPage() {
   // Category editor UI
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
   const [newCatGroup, setNewCatGroup] = useState<Category["group_name"]>("income");
+  const [newCatParentId, setNewCatParentId] = useState<string>(""); // "" => none
   const [newCatName, setNewCatName] = useState("");
   const [catMsg, setCatMsg] = useState("");
   const [catBusyId, setCatBusyId] = useState<string | null>(null);
@@ -83,6 +90,23 @@ export default function PlanPage() {
     for (const c of cards) map.set(c.id, c);
     return map;
   }, [cards]);
+
+  // helper: children by parent
+  const childrenByParent = useMemo(() => {
+    const m = new Map<string, Category[]>();
+    for (const c of categories) {
+      if (!c.parent_id) continue;
+      if (!m.has(c.parent_id)) m.set(c.parent_id, []);
+      m.get(c.parent_id)!.push(c);
+    }
+    for (const [k, arr] of m.entries()) {
+      arr.sort((a, b) => a.name.localeCompare(b.name));
+      m.set(k, arr);
+    }
+    return m;
+  }, [categories]);
+
+  const hasChildren = (catId: string) => (childrenByParent.get(catId)?.length ?? 0) > 0;
 
   // Category list shown depends on type
   const filteredCategories = useMemo(() => {
@@ -120,8 +144,7 @@ export default function PlanPage() {
     [items]
   );
   const plannedExpense = useMemo(
-    () =>
-      items.filter((it) => it.type === "expense").reduce((sum, it) => sum + Number(it.amount), 0),
+    () => items.filter((it) => it.type === "expense").reduce((sum, it) => sum + Number(it.amount), 0),
     [items]
   );
   const plannedDebt = useMemo(
@@ -130,14 +153,9 @@ export default function PlanPage() {
   );
 
   async function loadCategories() {
-    const { data: u } = await supabase.auth.getUser();
-    const user = u.user;
-    if (!user) return;
-
     const { data, error } = await supabase
       .from("categories")
-      .select("id, group_name, name")
-      .eq("user_id", user.id)
+      .select("id, group_name, name, parent_id")
       .order("group_name", { ascending: true })
       .order("name", { ascending: true });
 
@@ -205,35 +223,142 @@ export default function PlanPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthKey]);
 
-  function normalizeName(s: string) {
-    return s.trim().replace(/\s+/g, " ");
+  // Build select options where parents are headers (disabled) and children selectable
+  function buildCategoryOptions(list: Category[]) {
+    const byId = categoryById;
+
+    // parents: categories that have children in this filtered list
+    const parents = list
+      .filter((c) => !c.parent_id && hasChildren(c.id))
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const children = list.filter((c) => !!c.parent_id);
+
+    // children under their parent
+    const childGroups = new Map<string, Category[]>();
+    for (const c of children) {
+      const pid = c.parent_id!;
+      // only show children if parent is in same group (sanity)
+      const p = byId.get(pid);
+      if (!p) continue;
+      if (!childGroups.has(pid)) childGroups.set(pid, []);
+      childGroups.get(pid)!.push(c);
+    }
+    for (const [pid, arr] of childGroups.entries()) {
+      arr.sort((a, b) => a.name.localeCompare(b.name));
+      childGroups.set(pid, arr);
+    }
+
+    const topLevelSelectable = list
+      .filter((c) => !c.parent_id && !hasChildren(c.id))
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    // return a flat render plan
+    const render: Array<
+      | { kind: "option"; cat: Category; disabled?: boolean; labelOverride?: string }
+    > = [];
+
+    // parents (disabled) with children under them
+    for (const p of parents) {
+      render.push({ kind: "option", cat: p, disabled: true, labelOverride: p.name });
+      const kids = childGroups.get(p.id) ?? [];
+      for (const k of kids) {
+        render.push({
+          kind: "option",
+          cat: k,
+          disabled: false,
+          labelOverride: `  ${k.name}`, // indent
+        });
+      }
+    }
+
+    // remaining top-level selectable categories
+    for (const c of topLevelSelectable) {
+      render.push({ kind: "option", cat: c, disabled: false, labelOverride: c.name });
+    }
+
+    return render;
   }
+
+  const filteredCategoryOptions = useMemo(() => {
+    return buildCategoryOptions(filteredCategories);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredCategories, childrenByParent]);
+
+  // For category editor: parents are those in group with no parent
+  const editorParents = useMemo(() => {
+    return categories
+      .filter((c) => c.group_name === newCatGroup && c.parent_id === null)
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [categories, newCatGroup]);
+
+  const editorUnparented = useMemo(() => {
+    return categories
+      .filter((c) => c.group_name === newCatGroup && c.parent_id === null && !hasChildren(c.id))
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [categories, newCatGroup, childrenByParent]);
+
+  const editorTree = useMemo(() => {
+    const parents = categories
+      .filter((c) => c.group_name === newCatGroup && c.parent_id === null && hasChildren(c.id))
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const tree = parents.map((p) => ({
+      parent: p,
+      children: (childrenByParent.get(p.id) ?? []).filter((ch) => ch.group_name === newCatGroup),
+    }));
+
+    return tree;
+  }, [categories, newCatGroup, childrenByParent]);
 
   async function addCategory() {
     setCatMsg("");
     try {
       const { data: u } = await supabase.auth.getUser();
-      const user = u.user;
-      if (!user) return;
+      if (!u.user) return;
 
       const name = normalizeName(newCatName);
       if (!name) throw new Error("Enter a category name.");
 
-      // Prevent duplicates inside the same group (case-insensitive)
+      const parentId = newCatParentId ? newCatParentId : null;
+
+      // Prevent duplicates at same level (same group + same parent_id)
       const exists = categories.some(
-        (c) => c.group_name === newCatGroup && c.name.toLowerCase() === name.toLowerCase()
+        (c) =>
+          c.group_name === newCatGroup &&
+          (c.parent_id ?? null) === (parentId ?? null) &&
+          c.name.toLowerCase() === name.toLowerCase()
       );
-      if (exists) throw new Error("That category already exists.");
+      if (exists) throw new Error("That category already exists in this parent.");
+
+      // Safety: parent must be same group (and unparented)
+      if (parentId) {
+        const p = categoryById.get(parentId);
+        if (!p) throw new Error("Parent not found.");
+        if (p.group_name !== newCatGroup) throw new Error("Parent must be in the same group.");
+        if (p.parent_id) throw new Error("Only one nesting level is allowed (parent cannot have a parent).");
+      }
 
       const { data, error } = await supabase
         .from("categories")
-        .insert([{ user_id: user.id, group_name: newCatGroup, name }])
-        .select("id, group_name, name")
+        .insert([
+          {
+            user_id: u.user.id,          // IMPORTANT for RLS
+            group_name: newCatGroup,
+            name,
+            parent_id: parentId,
+          },
+        ])
+        .select("id, group_name, name, parent_id")
         .single();
 
       if (error) throw error;
 
-      // Update local list, keep it sorted
       const next = [...categories, data as Category].sort((a, b) => {
         if (a.group_name !== b.group_name) return a.group_name.localeCompare(b.group_name);
         return a.name.localeCompare(b.name);
@@ -241,15 +366,8 @@ export default function PlanPage() {
 
       setCategories(next);
       setCatMsg(`Added "${name}".`);
-
-      // Nice UX: if the new category matches the current selected type, auto-select it.
-      const wantedGroup =
-        formType === "income" ? "income" : formType === "expense" ? "expense" : "debt";
-      if (newCatGroup === wantedGroup) {
-        setFormCategoryId((data as Category).id);
-      }
-
       setNewCatName("");
+      setNewCatParentId(""); // default back to none
     } catch (e: any) {
       setCatMsg(e?.message ?? String(e));
     }
@@ -257,19 +375,24 @@ export default function PlanPage() {
 
   async function deleteCategory(cat: Category) {
     setCatMsg("");
+
+    // block deleting parent with children
+    if (hasChildren(cat.id)) {
+      setCatMsg(`"${cat.name}" has sub-categories. Delete or move its children first (or we can add archive later).`);
+      return;
+    }
+
     const ok = confirm(`Delete category "${cat.name}"? This cannot be undone.`);
     if (!ok) return;
 
     setCatBusyId(cat.id);
     try {
-      // RLS enforces ownership; list is already filtered by user_id.
       const { error } = await supabase.from("categories").delete().eq("id", cat.id);
       if (error) throw error;
 
       setCategories((prev) => prev.filter((c) => c.id !== cat.id));
 
-      // If you had it selected in the form, clear it
-      setFormCategoryId((prev) => (prev === cat.id ? "" : prev));
+      if (formCategoryId === cat.id) setFormCategoryId("");
 
       setCatMsg(`Deleted "${cat.name}".`);
     } catch (e: any) {
@@ -298,6 +421,8 @@ export default function PlanPage() {
 
       const cat = categoryById.get(formCategoryId);
       if (!cat) throw new Error("Category not found.");
+
+      if (hasChildren(cat.id)) throw new Error("Pick a sub-category (parent categories are headers).");
 
       const expectedGroup =
         formType === "income" ? "income" : formType === "expense" ? "expense" : "debt";
@@ -341,13 +466,6 @@ export default function PlanPage() {
       setMsg(e?.message ?? String(e));
     }
   }
-
-  const editorCategories = useMemo(() => {
-    return categories
-      .filter((c) => c.group_name === newCatGroup)
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [categories, newCatGroup]);
 
   return (
     <AuthGate>
@@ -413,6 +531,7 @@ export default function PlanPage() {
               onClick={() => {
                 setCatMsg("");
                 setNewCatGroup("income");
+                setNewCatParentId("");
                 setNewCatName("");
                 setShowCategoryEditor((v) => !v);
               }}
@@ -430,7 +549,10 @@ export default function PlanPage() {
                   <span className="text-sm text-zinc-700 dark:text-zinc-300">Group</span>
                   <select
                     value={newCatGroup}
-                    onChange={(e) => setNewCatGroup(e.target.value as Category["group_name"])}
+                    onChange={(e) => {
+                      setNewCatGroup(e.target.value as Category["group_name"]);
+                      setNewCatParentId("");
+                    }}
                     className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                   >
                     <option value="income">Income</option>
@@ -441,11 +563,27 @@ export default function PlanPage() {
                 </label>
 
                 <label className="grid gap-1">
+                  <span className="text-sm text-zinc-700 dark:text-zinc-300">Parent (optional)</span>
+                  <select
+                    value={newCatParentId}
+                    onChange={(e) => setNewCatParentId(e.target.value)}
+                    className="min-w-[220px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                  >
+                    <option value="">None</option>
+                    {editorParents.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="grid gap-1">
                   <span className="text-sm text-zinc-700 dark:text-zinc-300">New category name</span>
                   <input
                     value={newCatName}
                     onChange={(e) => setNewCatName(e.target.value)}
-                    placeholder="VA Benefits, GI Bill, Side Hustle…"
+                    placeholder="VA Benefits, Utilities, Internet…"
                     className="min-w-[260px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                   />
                 </label>
@@ -469,28 +607,74 @@ export default function PlanPage() {
                 </div>
 
                 <div className="mt-2 overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-800">
-                  {editorCategories.length === 0 ? (
+                  {editorTree.length === 0 && editorUnparented.length === 0 ? (
                     <div className="p-3 text-sm text-zinc-600 dark:text-zinc-300">
                       No categories in this group yet.
                     </div>
                   ) : (
-                    <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                      {editorCategories.map((c) => (
-                        <li
-                          key={c.id}
-                          className="flex items-center justify-between gap-3 bg-white p-3 text-sm text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100"
-                        >
-                          <span>{c.name}</span>
-                          <button
-                            disabled={catBusyId === c.id}
-                            onClick={() => deleteCategory(c)}
-                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                          >
-                            {catBusyId === c.id ? "Deleting…" : "Delete"}
-                          </button>
-                        </li>
+                    <div className="bg-white dark:bg-zinc-950">
+                      {/* parent groups */}
+                      {editorTree.map(({ parent, children }) => (
+                        <div key={parent.id} className="border-b border-zinc-200 dark:border-zinc-800">
+                          <div className="flex items-center justify-between p-3">
+                            <div className="font-semibold text-zinc-900 dark:text-zinc-100">
+                              {parent.name}
+                            </div>
+                            <button
+                              disabled={catBusyId === parent.id}
+                              onClick={() => deleteCategory(parent)}
+                              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            >
+                              {catBusyId === parent.id ? "Deleting…" : "Delete"}
+                            </button>
+                          </div>
+
+                          <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                            {children.map((c) => (
+                              <li
+                                key={c.id}
+                                className="flex items-center justify-between gap-3 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
+                              >
+                                <span className="pl-4">{c.name}</span>
+                                <button
+                                  disabled={catBusyId === c.id}
+                                  onClick={() => deleteCategory(c)}
+                                  className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                                >
+                                  {catBusyId === c.id ? "Deleting…" : "Delete"}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       ))}
-                    </ul>
+
+                      {/* unparented selectable categories */}
+                      {editorUnparented.length > 0 && (
+                        <div>
+                          <div className="px-3 pt-3 text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400">
+                            No parent
+                          </div>
+                          <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                            {editorUnparented.map((c) => (
+                              <li
+                                key={c.id}
+                                className="flex items-center justify-between gap-3 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
+                              >
+                                <span>{c.name}</span>
+                                <button
+                                  disabled={catBusyId === c.id}
+                                  onClick={() => deleteCategory(c)}
+                                  className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                                >
+                                  {catBusyId === c.id ? "Deleting…" : "Delete"}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -519,27 +703,23 @@ export default function PlanPage() {
             <label className="grid gap-1">
               <span className="text-sm text-zinc-700 dark:text-zinc-300">Category</span>
               <select
-  value={formCategoryId}
-  onChange={(e) => setFormCategoryId(e.target.value)}
-  className="min-w-[220px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
->
-  <option value="">
-    {filteredCategories.length ? "Choose category" : "No categories yet"}
-  </option>
-
-  <optgroup
-    label={
-      formType.charAt(0).toUpperCase() + formType.slice(1)
-    }
-  >
-    {filteredCategories.map((c) => (
-      <option key={c.id} value={c.id}>
-        {c.name}
-      </option>
-    ))}
-  </optgroup>
-</select>
-
+                value={formCategoryId}
+                onChange={(e) => setFormCategoryId(e.target.value)}
+                className="min-w-[220px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+              >
+                <option value="">
+                  {filteredCategories.length ? "Choose category" : "No categories yet"}
+                </option>
+                {filteredCategoryOptions.map((opt) => (
+                  <option
+                    key={opt.cat.id}
+                    value={opt.cat.id}
+                    disabled={!!opt.disabled}
+                  >
+                    {opt.labelOverride ?? opt.cat.name}
+                  </option>
+                ))}
+              </select>
             </label>
 
             {needsCard && (
@@ -590,7 +770,7 @@ export default function PlanPage() {
           </div>
 
           <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-            Tip: Any Debt category containing “credit card” will ask you to pick a card.
+            Tip: Parent categories are headers only. Select a sub-category when available.
           </div>
         </section>
 
