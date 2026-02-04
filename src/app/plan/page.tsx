@@ -2,6 +2,7 @@
 
 import AuthGate from "@/components/AuthGate";
 import { supabase } from "@/lib/supabaseClient";
+import { addMonths, firstDayOfMonth, toMonthKey } from "@/lib/date";
 import { useEffect, useMemo, useState } from "react";
 
 type Category = {
@@ -10,6 +11,8 @@ type Category = {
   group_name: "income" | "expense" | "debt" | "misc";
   name: string;
   parent_id: string | null;
+  sort_order: number;
+  is_archived: boolean;
 };
 
 type CreditCard = {
@@ -29,16 +32,6 @@ type PlanItem = {
   name: string;
   amount: number;
 };
-
-function firstDayOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-function addMonths(d: Date, m: number) {
-  return new Date(d.getFullYear(), d.getMonth() + m, 1);
-}
-function toMonthKey(d: Date) {
-  return firstDayOfMonth(d).toISOString().slice(0, 10);
-}
 
 function normalizeName(s: string) {
   return s.trim().replace(/\s+/g, " ");
@@ -68,6 +61,8 @@ export default function PlanPage() {
   const [newCatName, setNewCatName] = useState("");
   const [catMsg, setCatMsg] = useState("");
   const [catBusyId, setCatBusyId] = useState<string | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   const monthKey = useMemo(() => {
     const d = addMonths(new Date(), monthOffset);
@@ -100,7 +95,9 @@ export default function PlanPage() {
       m.get(c.parent_id)!.push(c);
     }
     for (const [k, arr] of m.entries()) {
-      arr.sort((a, b) => a.name.localeCompare(b.name));
+      arr.sort(
+        (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)
+      );
       m.set(k, arr);
     }
     return m;
@@ -112,7 +109,9 @@ export default function PlanPage() {
   const filteredCategories = useMemo(() => {
     const wantedGroup =
       formType === "income" ? "income" : formType === "expense" ? "expense" : "debt";
-    return categories.filter((c) => c.group_name === wantedGroup);
+    return categories.filter(
+      (c) => c.group_name === wantedGroup && !c.is_archived
+    );
   }, [categories, formType]);
 
   const selectedCategory = useMemo(() => {
@@ -155,8 +154,9 @@ export default function PlanPage() {
   async function loadCategories() {
     const { data, error } = await supabase
       .from("categories")
-      .select("id, group_name, name, parent_id")
+      .select("id, group_name, name, parent_id, sort_order, is_archived")
       .order("group_name", { ascending: true })
+      .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
 
     if (error) throw error;
@@ -231,7 +231,9 @@ export default function PlanPage() {
     const parents = list
       .filter((c) => !c.parent_id && hasChildren(c.id))
       .slice()
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort(
+        (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)
+      );
 
     const children = list.filter((c) => !!c.parent_id);
 
@@ -246,14 +248,18 @@ export default function PlanPage() {
       childGroups.get(pid)!.push(c);
     }
     for (const [pid, arr] of childGroups.entries()) {
-      arr.sort((a, b) => a.name.localeCompare(b.name));
+      arr.sort(
+        (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)
+      );
       childGroups.set(pid, arr);
     }
 
     const topLevelSelectable = list
       .filter((c) => !c.parent_id && !hasChildren(c.id))
       .slice()
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort(
+        (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)
+      );
 
     // return a flat render plan
     const render: Array<
@@ -290,27 +296,49 @@ export default function PlanPage() {
   // For category editor: parents are those in group with no parent
   const editorParents = useMemo(() => {
     return categories
-      .filter((c) => c.group_name === newCatGroup && c.parent_id === null)
+      .filter(
+        (c) => c.group_name === newCatGroup && c.parent_id === null && !c.is_archived
+      )
       .slice()
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort(
+        (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)
+      );
   }, [categories, newCatGroup]);
 
   const editorUnparented = useMemo(() => {
     return categories
-      .filter((c) => c.group_name === newCatGroup && c.parent_id === null && !hasChildren(c.id))
+      .filter(
+        (c) =>
+          c.group_name === newCatGroup &&
+          c.parent_id === null &&
+          !hasChildren(c.id) &&
+          !c.is_archived
+      )
       .slice()
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort(
+        (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)
+      );
   }, [categories, newCatGroup, childrenByParent]);
 
   const editorTree = useMemo(() => {
     const parents = categories
-      .filter((c) => c.group_name === newCatGroup && c.parent_id === null && hasChildren(c.id))
+      .filter(
+        (c) =>
+          c.group_name === newCatGroup &&
+          c.parent_id === null &&
+          hasChildren(c.id) &&
+          !c.is_archived
+      )
       .slice()
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort(
+        (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)
+      );
 
     const tree = parents.map((p) => ({
       parent: p,
-      children: (childrenByParent.get(p.id) ?? []).filter((ch) => ch.group_name === newCatGroup),
+      children: (childrenByParent.get(p.id) ?? []).filter(
+        (ch) => ch.group_name === newCatGroup && !ch.is_archived
+      ),
     }));
 
     return tree;
@@ -344,6 +372,14 @@ export default function PlanPage() {
         if (p.parent_id) throw new Error("Only one nesting level is allowed (parent cannot have a parent).");
       }
 
+      const maxOrder = categories
+        .filter(
+          (c) =>
+            c.group_name === newCatGroup &&
+            (c.parent_id ?? null) === (parentId ?? null)
+        )
+        .reduce((m, c) => Math.max(m, c.sort_order ?? 0), 0);
+
       const { data, error } = await supabase
         .from("categories")
         .insert([
@@ -352,16 +388,17 @@ export default function PlanPage() {
             group_name: newCatGroup,
             name,
             parent_id: parentId,
+            sort_order: maxOrder + 1,
           },
         ])
-        .select("id, group_name, name, parent_id")
+      .select("id, group_name, name, parent_id, sort_order, is_archived")
         .single();
 
       if (error) throw error;
 
       const next = [...categories, data as Category].sort((a, b) => {
         if (a.group_name !== b.group_name) return a.group_name.localeCompare(b.group_name);
-        return a.name.localeCompare(b.name);
+        return a.sort_order - b.sort_order || a.name.localeCompare(b.name);
       });
 
       setCategories(next);
@@ -378,7 +415,7 @@ export default function PlanPage() {
 
     // block deleting parent with children
     if (hasChildren(cat.id)) {
-      setCatMsg(`"${cat.name}" has sub-categories. Delete or move its children first (or we can add archive later).`);
+      setCatMsg(`"${cat.name}" has sub-categories. Delete or move its children first (or archive them).`);
       return;
     }
 
@@ -400,6 +437,161 @@ export default function PlanPage() {
         e?.message ??
           `Couldn't delete "${cat.name}". It may be used by planned items or transactions.`
       );
+    } finally {
+      setCatBusyId(null);
+    }
+  }
+
+  async function archiveCategory(cat: Category) {
+    setCatMsg("");
+    setCatBusyId(cat.id);
+    try {
+      const { error } = await supabase
+        .from("categories")
+        .update({ is_archived: true })
+        .eq("id", cat.id);
+      if (error) throw error;
+
+      setCategories((prev) => prev.filter((c) => c.id !== cat.id));
+      if (formCategoryId === cat.id) setFormCategoryId("");
+      setCatMsg(`Archived "${cat.name}".`);
+    } catch (e: any) {
+      setCatMsg(e?.message ?? String(e));
+    } finally {
+      setCatBusyId(null);
+    }
+  }
+
+  async function unarchiveCategory(cat: Category) {
+    setCatMsg("");
+    setCatBusyId(cat.id);
+    try {
+      const { error } = await supabase
+        .from("categories")
+        .update({ is_archived: false })
+        .eq("id", cat.id);
+      if (error) throw error;
+
+      setCategories((prev) =>
+        prev.map((c) => (c.id === cat.id ? { ...c, is_archived: false } : c))
+      );
+      setCatMsg(`Unarchived "${cat.name}".`);
+    } catch (e: any) {
+      setCatMsg(e?.message ?? String(e));
+    } finally {
+      setCatBusyId(null);
+    }
+  }
+
+  const archivedCategories = useMemo(() => {
+    return categories
+      .filter((c) => c.is_archived)
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [categories]);
+
+  function reorderList(list: Category[], fromId: string, toId: string) {
+    const next = list.slice();
+    const fromIndex = next.findIndex((c) => c.id === fromId);
+    const toIndex = next.findIndex((c) => c.id === toId);
+    if (fromIndex === -1 || toIndex === -1) return null;
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    return next;
+  }
+
+  async function persistOrder(list: Category[]) {
+    const results = await Promise.all(
+      list.map((c, idx) =>
+        supabase
+          .from("categories")
+          .update({ sort_order: idx + 1 })
+          .eq("id", c.id)
+      )
+    );
+    const err = results.find((r) => r.error)?.error;
+    if (err) throw err;
+  }
+
+  async function onDropCategory(targetId: string) {
+    if (!dragId || dragId === targetId) return;
+
+    const dragged = categories.find((c) => c.id === dragId);
+    const target = categories.find((c) => c.id === targetId);
+    if (!dragged || !target) return;
+
+    if (
+      dragged.group_name !== target.group_name ||
+      (dragged.parent_id ?? null) !== (target.parent_id ?? null)
+    ) {
+      return;
+    }
+
+    const siblings = categories
+      .filter(
+        (c) =>
+          c.group_name === dragged.group_name &&
+          (c.parent_id ?? null) === (dragged.parent_id ?? null)
+      )
+      .slice()
+      .sort(
+        (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)
+      );
+
+    const next = reorderList(siblings, dragId, targetId);
+    if (!next) return;
+
+    setCatBusyId("reorder");
+    try {
+      await persistOrder(next);
+      const orderMap = new Map<string, number>();
+      next.forEach((c, idx) => orderMap.set(c.id, idx + 1));
+      setCategories((prev) =>
+        prev.map((c) =>
+          orderMap.has(c.id) ? { ...c, sort_order: orderMap.get(c.id)! } : c
+        )
+      );
+      setCatMsg("Order updated.");
+    } catch (e: any) {
+      setCatMsg(e?.message ?? String(e));
+    } finally {
+      setCatBusyId(null);
+      setDragId(null);
+    }
+  }
+
+  async function moveCategory(cat: Category, direction: -1 | 1) {
+    const siblings = categories
+      .filter(
+        (c) =>
+          c.group_name === cat.group_name &&
+          (c.parent_id ?? null) === (cat.parent_id ?? null)
+      )
+      .slice()
+      .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+
+    const idx = siblings.findIndex((c) => c.id === cat.id);
+    if (idx === -1) return;
+    const nextIndex = idx + direction;
+    if (nextIndex < 0 || nextIndex >= siblings.length) return;
+
+    const next = siblings.slice();
+    const [moved] = next.splice(idx, 1);
+    next.splice(nextIndex, 0, moved);
+
+    setCatBusyId("reorder");
+    try {
+      await persistOrder(next);
+      const orderMap = new Map<string, number>();
+      next.forEach((c, i) => orderMap.set(c.id, i + 1));
+      setCategories((prev) =>
+        prev.map((c) =>
+          orderMap.has(c.id) ? { ...c, sort_order: orderMap.get(c.id)! } : c
+        )
+      );
+      setCatMsg("Order updated.");
+    } catch (e: any) {
+      setCatMsg(e?.message ?? String(e));
     } finally {
       setCatBusyId(null);
     }
@@ -493,7 +685,7 @@ export default function PlanPage() {
               onClick={refresh}
               className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
             >
-              {loading ? "Refreshing…" : "Refresh"}
+              {loading ? "Refreshing..." : "Refresh"}
             </button>
           </div>
         </div>
@@ -583,7 +775,7 @@ export default function PlanPage() {
                   <input
                     value={newCatName}
                     onChange={(e) => setNewCatName(e.target.value)}
-                    placeholder="VA Benefits, Utilities, Internet…"
+                    placeholder="VA Benefits, Utilities, Internet..."
                     className="min-w-[260px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                   />
                 </label>
@@ -617,16 +809,54 @@ export default function PlanPage() {
                       {editorTree.map(({ parent, children }) => (
                         <div key={parent.id} className="border-b border-zinc-200 dark:border-zinc-800">
                           <div className="flex items-center justify-between p-3">
-                            <div className="font-semibold text-zinc-900 dark:text-zinc-100">
-                              {parent.name}
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                title="Drag to reorder"
+                                aria-label="Drag to reorder"
+                                draggable
+                                onDragStart={() => setDragId(parent.id)}
+                                onDragEnd={() => setDragId(null)}
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={() => onDropCategory(parent.id)}
+                                className="cursor-grab rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-100 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                              >
+                                ::
+                              </button>
+                              <div className="font-semibold text-zinc-900 dark:text-zinc-100">
+                                {parent.name}
+                              </div>
                             </div>
-                            <button
-                              disabled={catBusyId === parent.id}
-                              onClick={() => deleteCategory(parent)}
-                              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                            >
-                              {catBusyId === parent.id ? "Deleting…" : "Delete"}
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                disabled={catBusyId === "reorder"}
+                                onClick={() => moveCategory(parent, -1)}
+                                className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                              >
+                                Up
+                              </button>
+                              <button
+                                disabled={catBusyId === "reorder"}
+                                onClick={() => moveCategory(parent, 1)}
+                                className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                              >
+                                Down
+                              </button>
+                              <button
+                                disabled={catBusyId === parent.id}
+                                onClick={() => archiveCategory(parent)}
+                                className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                              >
+                                {catBusyId === parent.id ? "Saving..." : "Archive"}
+                              </button>
+                              <button
+                                disabled={catBusyId === parent.id}
+                                onClick={() => deleteCategory(parent)}
+                                className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                              >
+                                {catBusyId === parent.id ? "Deleting..." : "Delete"}
+                              </button>
+                            </div>
                           </div>
 
                           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -635,14 +865,52 @@ export default function PlanPage() {
                                 key={c.id}
                                 className="flex items-center justify-between gap-3 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
                               >
-                                <span className="pl-4">{c.name}</span>
-                                <button
-                                  disabled={catBusyId === c.id}
-                                  onClick={() => deleteCategory(c)}
-                                  className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                                >
-                                  {catBusyId === c.id ? "Deleting…" : "Delete"}
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    title="Drag to reorder"
+                                    aria-label="Drag to reorder"
+                                    draggable
+                                    onDragStart={() => setDragId(c.id)}
+                                    onDragEnd={() => setDragId(null)}
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={() => onDropCategory(c.id)}
+                                    className="cursor-grab rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-100 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                                  >
+                                    ::
+                                  </button>
+                                  <span className="pl-2">{c.name}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    disabled={catBusyId === "reorder"}
+                                    onClick={() => moveCategory(c, -1)}
+                                    className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                                  >
+                                    Up
+                                  </button>
+                                  <button
+                                    disabled={catBusyId === "reorder"}
+                                    onClick={() => moveCategory(c, 1)}
+                                    className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                                  >
+                                    Down
+                                  </button>
+                                  <button
+                                    disabled={catBusyId === c.id}
+                                    onClick={() => archiveCategory(c)}
+                                    className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                                  >
+                                    {catBusyId === c.id ? "Saving..." : "Archive"}
+                                  </button>
+                                  <button
+                                    disabled={catBusyId === c.id}
+                                    onClick={() => deleteCategory(c)}
+                                    className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                                  >
+                                    {catBusyId === c.id ? "Deleting..." : "Delete"}
+                                  </button>
+                                </div>
                               </li>
                             ))}
                           </ul>
@@ -656,21 +924,59 @@ export default function PlanPage() {
                             No parent
                           </div>
                           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                            {editorUnparented.map((c) => (
-                              <li
-                                key={c.id}
-                                className="flex items-center justify-between gap-3 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
-                              >
-                                <span>{c.name}</span>
-                                <button
-                                  disabled={catBusyId === c.id}
-                                  onClick={() => deleteCategory(c)}
-                                  className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                                >
-                                  {catBusyId === c.id ? "Deleting…" : "Delete"}
-                                </button>
-                              </li>
-                            ))}
+                      {editorUnparented.map((c) => (
+                        <li
+                          key={c.id}
+                          className="flex items-center justify-between gap-3 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
+                        >
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              title="Drag to reorder"
+                              aria-label="Drag to reorder"
+                              draggable
+                              onDragStart={() => setDragId(c.id)}
+                              onDragEnd={() => setDragId(null)}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={() => onDropCategory(c.id)}
+                              className="cursor-grab rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-100 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                            >
+                              ::
+                            </button>
+                            <span>{c.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              disabled={catBusyId === "reorder"}
+                              onClick={() => moveCategory(c, -1)}
+                              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            >
+                              Up
+                            </button>
+                            <button
+                              disabled={catBusyId === "reorder"}
+                              onClick={() => moveCategory(c, 1)}
+                              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            >
+                              Down
+                            </button>
+                            <button
+                              disabled={catBusyId === c.id}
+                              onClick={() => archiveCategory(c)}
+                              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            >
+                              {catBusyId === c.id ? "Saving..." : "Archive"}
+                            </button>
+                            <button
+                              disabled={catBusyId === c.id}
+                              onClick={() => deleteCategory(c)}
+                              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            >
+                              {catBusyId === c.id ? "Deleting..." : "Delete"}
+                            </button>
+                          </div>
+                        </li>
+                      ))}
                           </ul>
                         </div>
                       )}
@@ -680,7 +986,49 @@ export default function PlanPage() {
 
                 <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
                   If a category is already used by planned items or transactions, Supabase may block deletion.
-                  In that case, we can add an “archive” feature later.
+                  Drag categories to reorder them. Archive hides categories from selectors.
+                </div>
+
+                <div className="mt-4">
+                  <button
+                    onClick={() => setShowArchived((v) => !v)}
+                    className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                  >
+                    {showArchived ? "Hide archived" : "Show archived"}
+                  </button>
+
+                  {showArchived && (
+                    <div className="mt-3 overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-800">
+                      {archivedCategories.length === 0 ? (
+                        <div className="p-3 text-sm text-zinc-600 dark:text-zinc-300">
+                          No archived categories.
+                        </div>
+                      ) : (
+                        <ul className="divide-y divide-zinc-200 bg-white text-sm text-zinc-900 dark:divide-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
+                          {archivedCategories.map((c) => (
+                            <li
+                              key={c.id}
+                              className="flex items-center justify-between gap-3 px-3 py-2"
+                            >
+                              <div>
+                                <div className="font-medium">{c.name}</div>
+                                <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                                  {c.group_name}
+                                </div>
+                              </div>
+                              <button
+                                disabled={catBusyId === c.id}
+                                onClick={() => unarchiveCategory(c)}
+                                className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                              >
+                                {catBusyId === c.id ? "Saving..." : "Unarchive"}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -745,7 +1093,7 @@ export default function PlanPage() {
               <input
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                placeholder="Rent, Paycheck, Capital One payment…"
+                placeholder="Rent, Paycheck, Capital One payment..."
                 className="min-w-[240px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
               />
             </label>
@@ -804,8 +1152,8 @@ export default function PlanPage() {
                     return (
                       <tr key={it.id} className="border-t border-zinc-200 dark:border-zinc-800">
                         <td className="p-3 capitalize">{it.type}</td>
-                        <td className="p-3">{cat?.name ?? "—"}</td>
-                        <td className="p-3">{card?.name ?? "—"}</td>
+                        <td className="p-3">{cat?.name ?? "--"}</td>
+                        <td className="p-3">{card?.name ?? "--"}</td>
                         <td className="p-3 font-medium">{it.name}</td>
                         <td className="p-3 text-right tabular-nums">
                           ${Number(it.amount).toFixed(2)}

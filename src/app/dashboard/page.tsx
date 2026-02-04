@@ -4,6 +4,14 @@ import AuthGate from "@/components/AuthGate";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
+  addMonths,
+  firstDayOfMonth,
+  nextMonth,
+  toMonthKey,
+  toYMD,
+} from "@/lib/date";
+import { formatMoney } from "@/lib/format";
+import {
   BarChart,
   Bar,
   XAxis,
@@ -19,26 +27,6 @@ type PlanRow = {
   amount: number;
 };
 
-function firstDayOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-function nextMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 1);
-}
-function addMonths(d: Date, m: number) {
-  return new Date(d.getFullYear(), d.getMonth() + m, 1);
-}
-function toYMD(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
-function toMonthKey(d: Date) {
-  return toYMD(firstDayOfMonth(d));
-}
-function money(n: number) {
-  const sign = n < 0 ? "-" : "";
-  return `${sign}$${Math.abs(n).toFixed(2)}`;
-}
-
 export default function DashboardPage() {
   const [msg, setMsg] = useState("");
 
@@ -53,7 +41,7 @@ export default function DashboardPage() {
   const [plannedIncome, setPlannedIncome] = useState<number | null>(null);
   const [plannedExpenses, setPlannedExpenses] = useState<number | null>(null);
 
-  // ✅ Reliable theme detection
+  //  Reliable theme detection
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
@@ -117,8 +105,9 @@ export default function DashboardPage() {
 
     const { data: cats, error: catErr } = await supabase
       .from("categories")
-      .select("id, group_name")
-      .in("group_name", ["income", "expense"]);
+      .select("id, group_name, is_archived")
+      .in("group_name", ["income", "expense"])
+      .eq("is_archived", false);
 
     if (catErr) {
       setMsg(catErr.message);
@@ -285,7 +274,7 @@ export default function DashboardPage() {
                 <YAxis stroke={axisLine} tick={{ fill: tickColor }} />
 
                 <Tooltip
-                  formatter={(v: any) => money(Number(v))}
+                  formatter={(v: any) => formatMoney(Number(v), { sign: true })}
                   contentStyle={{
                     backgroundColor: isDark ? "#09090b" : "#ffffff",
                     borderColor: isDark ? "#27272a" : "#e4e4e7",
@@ -326,20 +315,32 @@ export default function DashboardPage() {
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
             <div className="text-sm text-zinc-700 dark:text-zinc-300">Actual</div>
             <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-              Income: <span className="font-semibold text-zinc-900 dark:text-zinc-100">{money(actualIncome ?? 0)}</span>
+              Income:{" "}
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                {formatMoney(actualIncome ?? 0, { sign: true })}
+              </span>
             </div>
             <div className="text-sm text-zinc-700 dark:text-zinc-300">
-              Expenses: <span className="font-semibold text-zinc-900 dark:text-zinc-100">{money(actualExpenses ?? 0)}</span>
+              Expenses:{" "}
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                {formatMoney(actualExpenses ?? 0, { sign: true })}
+              </span>
             </div>
           </div>
 
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
             <div className="text-sm text-zinc-700 dark:text-zinc-300">Planned</div>
             <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-              Income: <span className="font-semibold text-zinc-900 dark:text-zinc-100">{money(plannedIncome ?? 0)}</span>
+              Income:{" "}
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                {formatMoney(plannedIncome ?? 0, { sign: true })}
+              </span>
             </div>
             <div className="text-sm text-zinc-700 dark:text-zinc-300">
-              Expenses: <span className="font-semibold text-zinc-900 dark:text-zinc-100">{money(plannedExpenses ?? 0)}</span>
+              Expenses:{" "}
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                {formatMoney(plannedExpenses ?? 0, { sign: true })}
+              </span>
             </div>
           </div>
         </div>

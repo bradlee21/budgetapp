@@ -19,38 +19,10 @@ export default function RootLayout({
 
             <nav className="flex flex-wrap gap-2 text-sm">
               <a
-                href="/dashboard"
-                className="rounded-md px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-900"
-              >
-                Dashboard
-              </a>
-
-              <a
                 href="/budget"
                 className="rounded-md px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-900"
               >
                 Budget
-              </a>
-
-              <a
-                href="/transactions"
-                className="rounded-md px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-900"
-              >
-                Transactions
-              </a>
-
-              <a
-                href="/plan"
-                className="rounded-md px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-900"
-              >
-                Plan
-              </a>
-
-              <a
-                href="/debt"
-                className="rounded-md px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-900"
-              >
-                Debt
               </a>
 
               <a

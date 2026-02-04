@@ -151,7 +151,7 @@ export default function DebtPage() {
           <div>
             <h1 className="text-3xl font-bold">Debt</h1>
             <div className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
-              Credit cards • Total balance:{" "}
+              Credit cards - Total balance:{" "}
               <span className="font-semibold">${totalBalance.toFixed(2)}</span>
             </div>
           </div>
@@ -160,7 +160,7 @@ export default function DebtPage() {
             onClick={loadCards}
             className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
           >
-            {loading ? "Refreshing…" : "Refresh"}
+            {loading ? "Refreshing..." : "Refresh"}
           </button>
         </div>
 
@@ -359,7 +359,7 @@ export default function DebtPage() {
 
           <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
             Note: balances auto-update when you add a payment transaction tied to a card.
-            Editing/deleting payment transactions is coming later (we’ll keep it safe).
+            Editing/deleting payment transactions is coming later (we'll keep it safe).
           </div>
         </section>
       </main>

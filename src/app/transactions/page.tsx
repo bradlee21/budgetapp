@@ -2,17 +2,21 @@
 
 import AuthGate from "@/components/AuthGate";
 import { supabase } from "@/lib/supabaseClient";
+import { addMonths, firstDayOfMonth, nextMonth, toYMD } from "@/lib/date";
 import { useEffect, useMemo, useState } from "react";
 
 type Category = {
   id: string;
   group_name: "income" | "expense" | "debt" | "misc";
   name: string;
+  sort_order: number;
+  is_archived: boolean;
 };
 
 type CreditCard = {
   id: string;
   name: string;
+  current_balance: number;
 };
 
 type Txn = {
@@ -23,19 +27,6 @@ type Txn = {
   category_id: string | null;
   credit_card_id: string | null;
 };
-
-function firstDayOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-function nextMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 1);
-}
-function addMonths(d: Date, m: number) {
-  return new Date(d.getFullYear(), d.getMonth() + m, 1);
-}
-function toYMD(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
 
 export default function TransactionsPage() {
   const [msg, setMsg] = useState("");
@@ -53,6 +44,12 @@ export default function TransactionsPage() {
   const [categoryId, setCategoryId] = useState("");
   const [cardId, setCardId] = useState("");
   const [description, setDescription] = useState(""); // optional
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editDate, setEditDate] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editCategoryId, setEditCategoryId] = useState("");
+  const [editCardId, setEditCardId] = useState("");
+  const [editDescription, setEditDescription] = useState("");
 
   const start = useMemo(() => {
     const d = addMonths(new Date(), monthOffset);
@@ -92,10 +89,16 @@ export default function TransactionsPage() {
   }, [categories]);
 
   const needsCard = categoryId !== "" && creditCardCategoryIds.includes(categoryId);
+  const editNeedsCard =
+    editCategoryId !== "" && creditCardCategoryIds.includes(editCategoryId);
 
   useEffect(() => {
     if (!needsCard) setCardId("");
   }, [needsCard]);
+
+  useEffect(() => {
+    if (!editNeedsCard) setEditCardId("");
+  }, [editNeedsCard]);
 
   function fallbackTxnName(
     catId: string,
@@ -112,7 +115,7 @@ export default function TransactionsPage() {
       const card = ccId ? cardById.get(ccId) : null;
       const cardName = card?.name ?? "Credit Card";
       // Keep it human-readable
-      return `Credit Card Payment • ${cardName}`;
+      return `Credit Card Payment - ${cardName}`;
     }
 
     return catName;
@@ -127,8 +130,10 @@ export default function TransactionsPage() {
 
       const { data: cats, error: catErr } = await supabase
         .from("categories")
-        .select("id, group_name, name")
+        .select("id, group_name, name, sort_order, is_archived")
+        .eq("is_archived", false)
         .order("group_name", { ascending: true })
+        .order("sort_order", { ascending: true })
         .order("name", { ascending: true });
 
       if (catErr) throw catErr;
@@ -136,11 +141,17 @@ export default function TransactionsPage() {
 
       const { data: cc, error: ccErr } = await supabase
         .from("credit_cards")
-        .select("id, name")
+        .select("id, name, current_balance")
         .order("name", { ascending: true });
 
       if (ccErr) throw ccErr;
-      setCards((cc ?? []) as CreditCard[]);
+      setCards(
+        (cc ?? []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          current_balance: Number(c.current_balance),
+        }))
+      );
 
       const { data: rows, error: txErr } = await supabase
         .from("transactions")
@@ -190,7 +201,7 @@ export default function TransactionsPage() {
       if (amt <= 0) throw new Error("Amount must be greater than 0.");
 
       // IMPORTANT: Some schemas require transactions.name NOT NULL.
-      // So we always send a name — but we generate it if you leave description blank.
+      // So we always send a name -- but we generate it if you leave description blank.
       const computedName = fallbackTxnName(
         categoryId,
         needsCard ? cardId : null,
@@ -220,8 +231,201 @@ export default function TransactionsPage() {
     }
   }
 
-  async function deleteTxn(_id: string) {
-    setMsg("Delete is disabled for now (we’ll add it safely with balance recalculation).");
+  function startEdit(t: Txn) {
+    setEditId(t.id);
+    setEditDate(t.date);
+    setEditAmount(String(t.amount));
+    setEditCategoryId(t.category_id ?? "");
+    setEditCardId(t.credit_card_id ?? "");
+    setEditDescription(t.name ?? "");
+  }
+
+  function cancelEdit() {
+    setEditId(null);
+    setEditDate("");
+    setEditAmount("");
+    setEditCategoryId("");
+    setEditCardId("");
+    setEditDescription("");
+  }
+
+  async function adjustCardBalance(cardId: string, delta: number) {
+    const card = cards.find((c) => c.id === cardId);
+    if (!card) throw new Error("Credit card not found.");
+    const next = card.current_balance + delta;
+    const { error } = await supabase
+      .from("credit_cards")
+      .update({ current_balance: next })
+      .eq("id", cardId);
+    if (error) throw error;
+    setCards((prev) =>
+      prev.map((c) => (c.id === cardId ? { ...c, current_balance: next } : c))
+    );
+  }
+
+  async function saveEdit(t: Txn) {
+    setMsg("");
+    try {
+      const amt = Number(editAmount);
+      if (!editDate) throw new Error("Pick a date.");
+      if (!Number.isFinite(amt)) throw new Error("Enter a valid amount.");
+      if (amt <= 0) throw new Error("Amount must be greater than 0.");
+      if (!editCategoryId) throw new Error("Pick a category.");
+      if (editNeedsCard && !editCardId) throw new Error("Select a credit card.");
+
+      const newName = fallbackTxnName(
+        editCategoryId,
+        editNeedsCard ? editCardId : null,
+        editDescription
+      );
+
+      const payload: any = {
+        date: editDate,
+        name: newName,
+        amount: amt,
+        category_id: editCategoryId,
+        credit_card_id: editNeedsCard ? editCardId : null,
+      };
+
+      const oldRequiresCard =
+        !!t.category_id && creditCardCategoryIds.includes(t.category_id);
+      const newRequiresCard = editNeedsCard;
+
+      const oldCardId = t.credit_card_id ?? null;
+      const newCardId = editNeedsCard ? editCardId : null;
+
+      const { error } = await supabase
+        .from("transactions")
+        .update(payload)
+        .eq("id", t.id);
+      if (error) throw error;
+
+      if (oldRequiresCard && newRequiresCard && oldCardId && newCardId) {
+        if (oldCardId === newCardId) {
+          const delta = t.amount - amt;
+          if (delta !== 0) await adjustCardBalance(oldCardId, delta);
+        } else {
+          await adjustCardBalance(oldCardId, t.amount);
+          await adjustCardBalance(newCardId, -amt);
+        }
+      } else if (oldRequiresCard && oldCardId) {
+        await adjustCardBalance(oldCardId, t.amount);
+      } else if (newRequiresCard && newCardId) {
+        await adjustCardBalance(newCardId, -amt);
+      }
+
+      setTxns((prev) =>
+        prev.map((x) =>
+          x.id === t.id
+            ? {
+                ...x,
+                date: editDate,
+                name: newName,
+                amount: amt,
+                category_id: editCategoryId,
+                credit_card_id: editNeedsCard ? editCardId : null,
+              }
+            : x
+        )
+      );
+
+      cancelEdit();
+      setMsg("Transaction updated.");
+    } catch (e: any) {
+      setMsg(e?.message ?? String(e));
+    }
+  }
+
+  async function deleteTxn(t: Txn) {
+    setMsg("");
+    try {
+      const ok = confirm("Delete this transaction? This cannot be undone.");
+      if (!ok) return;
+
+      const oldRequiresCard =
+        !!t.category_id && creditCardCategoryIds.includes(t.category_id);
+      const oldCardId = t.credit_card_id ?? null;
+
+      const { error } = await supabase.from("transactions").delete().eq("id", t.id);
+      if (error) throw error;
+
+      if (oldRequiresCard && oldCardId) {
+        await adjustCardBalance(oldCardId, t.amount);
+      }
+
+      setTxns((prev) => prev.filter((x) => x.id !== t.id));
+      setMsg("Transaction deleted.");
+    } catch (e: any) {
+      setMsg(e?.message ?? String(e));
+    }
+  }
+
+  async function recalcBalances() {
+    setMsg("");
+    try {
+      const ok = confirm(
+        "Recalculate balances from all credit card payment transactions? You will be prompted for starting balances."
+      );
+      if (!ok) return;
+
+      if (creditCardCategoryIds.length === 0) {
+        throw new Error("No credit card payment categories found.");
+      }
+
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
+
+      const { data: rows, error } = await supabase
+        .from("transactions")
+        .select("credit_card_id, amount, category_id")
+        .eq("user_id", u.user.id)
+        .in("category_id", creditCardCategoryIds);
+      if (error) throw error;
+
+      const totals = new Map<string, number>();
+      for (const r of rows ?? []) {
+        if (!r.credit_card_id) continue;
+        totals.set(
+          r.credit_card_id,
+          (totals.get(r.credit_card_id) ?? 0) + Number(r.amount)
+        );
+      }
+
+      const updated: CreditCard[] = [];
+
+      for (const card of cards) {
+        const totalPaid = totals.get(card.id) ?? 0;
+        const input = prompt(
+          `Starting balance for ${card.name} (before any payments). Total payments: $${totalPaid.toFixed(
+            2
+          )}`,
+          String(card.current_balance)
+        );
+        if (input === null) {
+          updated.push(card);
+          continue;
+        }
+
+        const starting = Number(input);
+        if (!Number.isFinite(starting)) {
+          throw new Error(`Starting balance for "${card.name}" must be a number.`);
+        }
+
+        const next = starting - totalPaid;
+        const { error: upErr } = await supabase
+          .from("credit_cards")
+          .update({ current_balance: next })
+          .eq("id", card.id);
+        if (upErr) throw upErr;
+
+        updated.push({ ...card, current_balance: next });
+      }
+
+      setCards(updated);
+      setMsg("Balances recalculated.");
+    } catch (e: any) {
+      setMsg(e?.message ?? String(e));
+    }
   }
 
   return (
@@ -231,7 +435,7 @@ export default function TransactionsPage() {
           <div>
             <h1 className="text-3xl font-bold">Transactions</h1>
             <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
-              {monthLabel} • {start} → {end}
+              {monthLabel} - {start} {"->"} {end}
             </p>
           </div>
 
@@ -252,7 +456,14 @@ export default function TransactionsPage() {
               onClick={loadAll}
               className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
             >
-              {loading ? "Refreshing…" : "Refresh"}
+              {loading ? "Refreshing..." : "Refresh"}
+            </button>
+
+            <button
+              onClick={recalcBalances}
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+            >
+              Recalculate balances
             </button>
           </div>
         </div>
@@ -352,7 +563,7 @@ export default function TransactionsPage() {
               <input
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Target, Venmo, notes…"
+                placeholder="Target, Venmo, notes..."
                 className="min-w-[260px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
               />
             </label>
@@ -366,7 +577,7 @@ export default function TransactionsPage() {
           </div>
 
           <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-            Tip: Any <b>Debt</b> category containing <b>“credit card”</b> will ask you to pick a card.
+            Tip: Any <b>Debt</b> category containing <b>"credit card"</b> will ask you to pick a card.
           </div>
         </section>
 
@@ -406,36 +617,146 @@ export default function TransactionsPage() {
                           )
                         : (t.name ?? "Transaction");
 
+                    const isEditing = editId === t.id;
+
                     return (
                       <tr
                         key={t.id}
                         className="border-t border-zinc-200 dark:border-zinc-800"
                       >
-                        <td className="p-3">{t.date}</td>
-
                         <td className="p-3">
-                          <div className="font-medium">{itemLabel}</div>
-                          {!!t.name?.trim() && (
-                            <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                              {t.name}
-                            </div>
+                          {isEditing ? (
+                            <input
+                              type="date"
+                              value={editDate}
+                              onChange={(e) => setEditDate(e.target.value)}
+                              className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                            />
+                          ) : (
+                            t.date
                           )}
                         </td>
 
                         <td className="p-3">
-                          {cat ? `${cat.group_name} • ${cat.name}` : "—"}
+                          {isEditing ? (
+                            <input
+                              value={editDescription}
+                              onChange={(e) => setEditDescription(e.target.value)}
+                              placeholder="Target, Venmo, notes..."
+                              className="min-w-[220px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                            />
+                          ) : (
+                            <>
+                              <div className="font-medium">{itemLabel}</div>
+                              {!!t.name?.trim() && (
+                                <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                                  {t.name}
+                                </div>
+                              )}
+                            </>
+                          )}
                         </td>
-                        <td className="p-3">{card?.name ?? "—"}</td>
+
+                        <td className="p-3">
+                          {isEditing ? (
+                            <select
+                              value={editCategoryId}
+                              onChange={(e) => setEditCategoryId(e.target.value)}
+                              className="min-w-[200px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                            >
+                              <option value="">Select category</option>
+                              {(["income", "expense", "debt", "misc"] as const).map((group) => {
+                                const groupCats = categories.filter(
+                                  (c) => c.group_name === group
+                                );
+                                if (groupCats.length === 0) return null;
+
+                                return (
+                                  <optgroup
+                                    key={group}
+                                    label={group.charAt(0).toUpperCase() + group.slice(1)}
+                                  >
+                                    {groupCats.map((c) => (
+                                      <option key={c.id} value={c.id}>
+                                        {c.name}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                );
+                              })}
+                            </select>
+                          ) : cat ? (
+                            `${cat.group_name} - ${cat.name}`
+                          ) : (
+                            "--"
+                          )}
+                        </td>
+                        <td className="p-3">
+                          {isEditing ? (
+                            editNeedsCard ? (
+                              <select
+                                value={editCardId}
+                                onChange={(e) => setEditCardId(e.target.value)}
+                                className="min-w-[180px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                              >
+                                <option value="">Select a card</option>
+                                {cards.map((cc) => (
+                                  <option key={cc.id} value={cc.id}>
+                                    {cc.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-zinc-600 dark:text-zinc-400">--</span>
+                            )
+                          ) : (
+                            card?.name ?? "--"
+                          )}
+                        </td>
                         <td className="p-3 text-right tabular-nums">
-                          ${t.amount.toFixed(2)}
+                          {isEditing ? (
+                            <input
+                              value={editAmount}
+                              onChange={(e) => setEditAmount(e.target.value)}
+                              inputMode="decimal"
+                              className="w-[120px] rounded-md border border-zinc-300 bg-white p-2 text-right text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                            />
+                          ) : (
+                            `$${t.amount.toFixed(2)}`
+                          )}
                         </td>
                         <td className="p-3 text-right">
-                          <button
-                            onClick={() => deleteTxn(t.id)}
-                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                          >
-                            Delete
-                          </button>
+                          {isEditing ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => saveEdit(t)}
+                                className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={cancelEdit}
+                                className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => startEdit(t)}
+                                className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => deleteTxn(t)}
+                                className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );
@@ -446,7 +767,8 @@ export default function TransactionsPage() {
           </div>
 
           <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-            Delete/edit is intentionally paused until we add a safe “recalculate balances” flow.
+            Edit/delete updates balances for credit card payment transactions. Recalculate will
+            prompt for starting balances and recompute from all payments.
           </div>
         </section>
       </main>

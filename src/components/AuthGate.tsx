@@ -31,7 +31,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   if (!ready) {
     return (
       <div className="mx-auto mt-10 max-w-md px-4 text-zinc-700 dark:text-zinc-300">
-        Checking session…
+        Checking session...
       </div>
     );
   }

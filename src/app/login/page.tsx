@@ -137,7 +137,7 @@ async function createDefaultCategories() {
           onChange={(e) => setPassword(e.target.value)}
           type="password"
           className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-          placeholder="••••••••"
+          placeholder="--------"
         />
       </label>
 
