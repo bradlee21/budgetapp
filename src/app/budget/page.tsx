@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 type Category = {
   id: string;
-  group_name: "income" | "expense" | "debt" | "misc";
+  group_name: "income" | "giving" | "expense" | "debt" | "misc";
   name: string;
   parent_id: string | null;
   sort_order: number;
@@ -41,6 +41,7 @@ type PlanItem = {
   type: "income" | "expense" | "debt";
   category_id: string;
   credit_card_id: string | null;
+  debt_account_id: string | null;
   name: string;
   amount: number;
 };
@@ -73,6 +74,7 @@ type BudgetRow = {
   editable?: boolean;
   indent?: number;
   orderableCategoryId?: string;
+  deletableCategoryId?: string;
 };
 
 function Section({
@@ -105,6 +107,7 @@ function BudgetTable({
   onCancelPlanned,
   onStartEditPlanned,
   setDragCategoryId,
+  onDeleteCategory,
 }: {
   rows: BudgetRow[];
   onDrop: (categoryId: string) => void;
@@ -115,8 +118,10 @@ function BudgetTable({
   onCancelPlanned: () => void;
   onStartEditPlanned: (rowId: string, planned: number) => void;
   setDragCategoryId: (id: string | null) => void;
+  onDeleteCategory: (categoryId: string) => void;
 }) {
   const showOrder = rows.some((r) => r.orderableCategoryId);
+  const showDelete = rows.some((r) => r.deletableCategoryId);
   return (
     <table className="w-full border-collapse text-sm">
       <thead className="text-zinc-700 dark:text-zinc-300">
@@ -126,6 +131,7 @@ function BudgetTable({
           <th className="p-2 text-right">Planned</th>
           <th className="p-2 text-right">Actual</th>
           <th className="p-2 text-right">Remaining</th>
+          {showDelete && <th className="p-2 text-right">Delete</th>}
         </tr>
       </thead>
       <tbody className="text-zinc-900 dark:text-zinc-100">
@@ -133,7 +139,7 @@ function BudgetTable({
           <tr>
             <td
               className="p-2 text-zinc-600 dark:text-zinc-300"
-              colSpan={showOrder ? 5 : 4}
+              colSpan={showOrder ? (showDelete ? 6 : 5) : showDelete ? 5 : 4}
             >
               Nothing here yet.
             </td>
@@ -241,6 +247,20 @@ function BudgetTable({
               <td className="p-2 text-right tabular-nums">
                 {formatMoney(r.remaining)}
               </td>
+              {showDelete && (
+                <td className="p-2 text-right">
+                  {r.deletableCategoryId ? (
+                    <button
+                      onClick={() => onDeleteCategory(r.deletableCategoryId!)}
+                      className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                    >
+                      Delete
+                    </button>
+                  ) : (
+                    <span className="text-zinc-500">--</span>
+                  )}
+                </td>
+              )}
             </tr>
           ))
         )}
@@ -271,15 +291,24 @@ export default function BudgetPage() {
   const [dragCategoryId, setDragCategoryId] = useState<string | null>(null);
   const [newCatName, setNewCatName] = useState({
     income: "",
+    giving: "",
     expense: "",
     debt: "",
     misc: "",
   });
   const [newCatParent, setNewCatParent] = useState({
     income: "",
+    giving: "",
     expense: "",
     debt: "",
     misc: "",
+  });
+  const [newCatIsGroup, setNewCatIsGroup] = useState({
+    income: false,
+    giving: false,
+    expense: false,
+    debt: false,
+    misc: false,
   });
 
   const [txnDate, setTxnDate] = useState(toYMD(new Date()));
@@ -301,6 +330,7 @@ export default function BudgetPage() {
   const [debtApr, setDebtApr] = useState("");
   const [debtMinPayment, setDebtMinPayment] = useState("");
   const [debtDueDate, setDebtDueDate] = useState("");
+  const [confirmDeleteDebtId, setConfirmDeleteDebtId] = useState<string | null>(null);
 
   const monthKey = useMemo(() => {
     const d = addMonths(new Date(), monthOffset);
@@ -441,7 +471,7 @@ export default function BudgetPage() {
 
       const { data: plan, error: planErr } = await supabase
         .from("planned_items")
-        .select("id, type, category_id, credit_card_id, name, amount")
+        .select("id, type, category_id, credit_card_id, debt_account_id, name, amount")
         .eq("user_id", u.user.id)
         .eq("month", monthKey);
 
@@ -453,6 +483,7 @@ export default function BudgetPage() {
           type: p.type,
           category_id: p.category_id,
           credit_card_id: p.credit_card_id ?? null,
+          debt_account_id: p.debt_account_id ?? null,
           name: p.name,
           amount: Number(p.amount),
         }))
@@ -585,6 +616,9 @@ export default function BudgetPage() {
       if (creditCardCategoryIds.includes(p.category_id)) {
         const key = `CC::${p.credit_card_id ?? "none"}`;
         m.set(key, (m.get(key) ?? 0) + p.amount);
+      } else if (p.debt_account_id) {
+        const key = `DEBT::${p.debt_account_id}`;
+        m.set(key, (m.get(key) ?? 0) + p.amount);
       } else {
         const key = `${p.category_id}::none`;
         m.set(key, (m.get(key) ?? 0) + p.amount);
@@ -600,6 +634,9 @@ export default function BudgetPage() {
 
       if (creditCardCategoryIds.includes(t.category_id)) {
         const key = `CC::${t.credit_card_id ?? "none"}`;
+        m.set(key, (m.get(key) ?? 0) + t.amount);
+      } else if (t.debt_account_id) {
+        const key = `DEBT::${t.debt_account_id}`;
         m.set(key, (m.get(key) ?? 0) + t.amount);
       } else {
         const key = `${t.category_id}::none`;
@@ -656,6 +693,8 @@ export default function BudgetPage() {
         ? { kind: "category" as const, id: rowKey.slice(5) }
         : rowKey.startsWith("CC::")
         ? { kind: "card" as const, id: rowKey.slice(4) }
+        : rowKey.startsWith("DEBT::")
+        ? { kind: "debt" as const, id: rowKey.slice(6) }
         : null;
     if (!target) return;
 
@@ -668,11 +707,13 @@ export default function BudgetPage() {
     const items =
       target.kind === "category"
         ? planRows.filter((p) => p.category_id === target.id)
-        : planRows.filter(
+        : target.kind === "card"
+        ? planRows.filter(
             (p) =>
               creditCardCategoryIds.includes(p.category_id) &&
               p.credit_card_id === target.id
-          );
+          )
+        : planRows.filter((p) => p.debt_account_id === target.id);
 
     if (items.length > 1) {
       const ok = confirm(
@@ -683,6 +724,7 @@ export default function BudgetPage() {
 
     let categoryId = "";
     let creditCardId: string | null = null;
+    let debtAccountId: string | null = null;
     let type: PlanItem["type"] = "expense";
 
     if (target.kind === "category") {
@@ -698,13 +740,26 @@ export default function BudgetPage() {
           : cat.group_name === "debt"
           ? "debt"
           : "expense";
-    } else {
+    } else if (target.kind === "card") {
       if (!primaryCreditCardCategoryId) {
         setMsg('Create a Debt category containing "credit card" first.');
         return;
       }
       categoryId = primaryCreditCardCategoryId;
       creditCardId = target.id;
+      type = "debt";
+    } else {
+      const nonCcDebtCat = categories.find(
+        (c) =>
+          c.group_name === "debt" &&
+          !creditCardCategoryIds.includes(c.id)
+      );
+      if (!nonCcDebtCat) {
+        setMsg("Create a non-credit-card Debt category to budget debt accounts.");
+        return;
+      }
+      categoryId = nonCcDebtCat.id;
+      debtAccountId = target.id;
       type = "debt";
     }
 
@@ -714,13 +769,17 @@ export default function BudgetPage() {
           .from("planned_items")
           .update({ amount: amt })
           .eq("id", items[0].id)
-          .select("id, type, category_id, credit_card_id, name, amount")
+          .select("id, type, category_id, credit_card_id, debt_account_id, name, amount")
           .single();
         if (error) throw error;
         setPlanRows((prev) =>
           prev.map((p) =>
             p.id === data.id
-              ? { ...p, amount: Number(data.amount) }
+              ? {
+                  ...p,
+                  amount: Number(data.amount),
+                  debt_account_id: data.debt_account_id ?? null,
+                }
               : p
           )
         );
@@ -743,13 +802,14 @@ export default function BudgetPage() {
           type,
           category_id: categoryId,
           credit_card_id: creditCardId,
+          debt_account_id: debtAccountId,
           name: "Planned total",
           amount: amt,
         };
         const { data, error } = await supabase
           .from("planned_items")
           .insert([payload])
-          .select("id, type, category_id, credit_card_id, name, amount")
+          .select("id, type, category_id, credit_card_id, debt_account_id, name, amount")
           .single();
         if (error) throw error;
         setPlanRows((prev) => [
@@ -759,6 +819,7 @@ export default function BudgetPage() {
             type: data.type,
             category_id: data.category_id,
             credit_card_id: data.credit_card_id ?? null,
+            debt_account_id: data.debt_account_id ?? null,
             name: data.name,
             amount: Number(data.amount),
           },
@@ -770,6 +831,32 @@ export default function BudgetPage() {
       setMsg("Planned total updated.");
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
+    }
+  }
+
+  async function deleteCategory(categoryId: string) {
+    setMsg("");
+    try {
+      const hasChildren = categories.some((c) => c.parent_id === categoryId);
+      if (hasChildren) {
+        setMsg("Delete or move its children first (or archive it).");
+        return;
+      }
+      const ok = confirm("Delete this category? This cannot be undone.");
+      if (!ok) return;
+
+      const { error } = await supabase
+        .from("categories")
+        .delete()
+        .eq("id", categoryId);
+      if (error) throw error;
+
+      setCategories((prev) => prev.filter((c) => c.id !== categoryId));
+    } catch (e: any) {
+      setMsg(
+        e?.message ??
+          "Couldn't delete. It may be used by planned items or transactions."
+      );
     }
   }
 
@@ -791,7 +878,11 @@ export default function BudgetPage() {
       const name = newCatName[group].trim();
       if (!name) throw new Error("Enter a category name.");
 
-      const parentId = newCatParent[group] ? newCatParent[group] : null;
+      const parentId = newCatIsGroup[group]
+        ? null
+        : newCatParent[group]
+        ? newCatParent[group]
+        : null;
       if (parentId) {
         const p = categoryById.get(parentId);
         if (!p) throw new Error("Parent not found.");
@@ -832,6 +923,7 @@ export default function BudgetPage() {
 
       setNewCatName((prev) => ({ ...prev, [group]: "" }));
       setNewCatParent((prev) => ({ ...prev, [group]: "" }));
+      setNewCatIsGroup((prev) => ({ ...prev, [group]: false }));
       setMsg(`Added "${name}".`);
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
@@ -845,36 +937,55 @@ export default function BudgetPage() {
     const target = categoryById.get(targetCategoryId);
     if (!dragged || !target) return;
 
-    if (
-      dragged.group_name !== target.group_name ||
-      (dragged.parent_id ?? null) !== (target.parent_id ?? null)
-    ) {
+    if (dragged.group_name !== target.group_name) {
       return;
     }
 
-    const siblings = categories
+    const targetParentId = target.parent_id ?? null;
+    const draggedParentId = dragged.parent_id ?? null;
+    const draggedHasChildren = categories.some((c) => c.parent_id === dragged.id);
+    if (draggedHasChildren && targetParentId) {
+      // prevent nesting a parent under another parent
+      return;
+    }
+
+    const targetSiblings = categories
       .filter(
         (c) =>
           c.group_name === dragged.group_name &&
-          (c.parent_id ?? null) === (dragged.parent_id ?? null)
+          (c.parent_id ?? null) === targetParentId
       )
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
 
-    const fromIndex = siblings.findIndex((c) => c.id === dragged.id);
-    const toIndex = siblings.findIndex((c) => c.id === target.id);
-    if (fromIndex === -1 || toIndex === -1) return;
+    const fromIndex = targetSiblings.findIndex((c) => c.id === dragged.id);
+    const toIndex = targetSiblings.findIndex((c) => c.id === target.id);
+    const inSameParent = draggedParentId === targetParentId;
 
-    const next = siblings.slice();
-    const [moved] = next.splice(fromIndex, 1);
-    next.splice(toIndex, 0, moved);
+    const next = targetSiblings.slice();
+    if (inSameParent && fromIndex !== -1) {
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+    } else {
+      next.splice(toIndex, 0, { ...dragged, parent_id: targetParentId });
+    }
 
-    const updates = await Promise.all(
-      next.map((c, i) =>
+    const updates = [];
+    if (!inSameParent) {
+      updates.push(
+        supabase
+          .from("categories")
+          .update({ parent_id: targetParentId })
+          .eq("id", dragged.id)
+      );
+    }
+    updates.push(
+      ...next.map((c, i) =>
         supabase.from("categories").update({ sort_order: i + 1 }).eq("id", c.id)
       )
     );
-    const err = updates.find((r) => r.error)?.error;
+    const results = await Promise.all(updates);
+    const err = results.find((r) => r.error)?.error;
     if (err) {
       setMsg(err.message);
       return;
@@ -884,7 +995,13 @@ export default function BudgetPage() {
     next.forEach((c, i) => orderMap.set(c.id, i + 1));
     setCategories((prev) =>
       prev.map((c) =>
-        orderMap.has(c.id) ? { ...c, sort_order: orderMap.get(c.id)! } : c
+        orderMap.has(c.id)
+          ? {
+              ...c,
+              sort_order: orderMap.get(c.id)!,
+              parent_id: c.id === dragged.id ? targetParentId : c.parent_id,
+            }
+          : c
       )
     );
     setDragCategoryId(null);
@@ -1147,6 +1264,36 @@ export default function BudgetPage() {
     }
   }
 
+  async function deleteDebtAccount(debt: DebtAccount) {
+    setMsg("");
+    try {
+      if (!userId) return;
+      const { error } = await supabase
+        .from("debt_accounts")
+        .delete()
+        .eq("id", debt.id);
+      if (error) throw error;
+
+      const { error: planErr } = await supabase
+        .from("planned_items")
+        .delete()
+        .eq("debt_account_id", debt.id);
+      if (planErr) throw planErr;
+
+      setDebtAccounts((prev) => prev.filter((d) => d.id !== debt.id));
+      setPlanRows((prev) => prev.filter((p) => p.debt_account_id !== debt.id));
+      setTxns((prev) =>
+        prev.map((t) =>
+          t.debt_account_id === debt.id ? { ...t, debt_account_id: null } : t
+        )
+      );
+      setConfirmDeleteDebtId(null);
+      setMsg("Debt account deleted.");
+    } catch (e: any) {
+      setMsg(e?.message ?? String(e));
+    }
+  }
+
   const availableStartNum = useMemo(() => {
     const n = Number(availableStart);
     return Number.isFinite(n) ? n : 0;
@@ -1163,6 +1310,7 @@ export default function BudgetPage() {
 
   // Sections
   const incomeCats = categories.filter((c) => c.group_name === "income");
+  const givingCats = categories.filter((c) => c.group_name === "giving");
   const expenseCats = categories.filter((c) => c.group_name === "expense");
   const debtCats = categories.filter((c) => c.group_name === "debt");
   const miscCats = categories.filter((c) => c.group_name === "misc");
@@ -1221,6 +1369,7 @@ export default function BudgetPage() {
           editable: false,
           indent: 0,
           orderableCategoryId: p.id,
+          deletableCategoryId: undefined,
         });
         for (const k of kids) {
           const v = rowForCategory(k.id);
@@ -1233,6 +1382,7 @@ export default function BudgetPage() {
             editable: true,
             indent: 1,
             orderableCategoryId: k.id,
+            deletableCategoryId: k.id,
           });
         }
       } else {
@@ -1246,6 +1396,7 @@ export default function BudgetPage() {
           editable: true,
           indent: 0,
           orderableCategoryId: p.id,
+          deletableCategoryId: p.id,
         });
       }
     }
@@ -1260,9 +1411,11 @@ export default function BudgetPage() {
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
 
-    return parents.map((p) => {
-      const kids = childrenByParent.get(p.id) ?? [];
-      if (kids.length > 0) {
+    const groups = parents
+      .map((p) => {
+        const kids = childrenByParent.get(p.id) ?? [];
+        if (kids.length === 0) return null;
+
         const totals = kids.reduce(
           (acc, k) => {
             const v = rowForCategory(k.id);
@@ -1284,6 +1437,7 @@ export default function BudgetPage() {
             editable: true,
             indent: 0,
             orderableCategoryId: k.id,
+            deletableCategoryId: k.id,
           };
         });
         return {
@@ -1292,27 +1446,32 @@ export default function BudgetPage() {
           totals,
           rows,
         };
-      }
+      })
+      .filter(Boolean) as Array<{
+      id: string;
+      label: string;
+      totals: { planned: number; actual: number; remaining: number };
+      rows: BudgetRow[];
+    }>;
 
-      const v = rowForCategory(p.id);
-      return {
-        id: `CAT::${p.id}`,
-        label: p.name,
-        totals: v,
-        rows: [
-          {
-            id: `CAT::${p.id}`,
-            label: p.name,
-            planned: v.planned,
-            actual: v.actual,
-            remaining: v.remaining,
-            editable: true,
-            indent: 0,
-            orderableCategoryId: p.id,
-          },
-        ],
-      };
-    });
+    const ungrouped = parents
+      .filter((p) => (childrenByParent.get(p.id) ?? []).length === 0)
+      .map((p) => {
+        const v = rowForCategory(p.id);
+        return {
+          id: `CAT::${p.id}`,
+          label: p.name,
+          planned: v.planned,
+          actual: v.actual,
+          remaining: v.remaining,
+          editable: true,
+          indent: 0,
+          orderableCategoryId: p.id,
+          deletableCategoryId: p.id,
+        } as BudgetRow;
+      });
+
+    return { groups, ungrouped };
   }
 
   function rowForCategory(catId: string) {
@@ -1333,7 +1492,8 @@ export default function BudgetPage() {
 
   // Build section rows
   const incomeRows = buildCategoryRows(incomeCats);
-  const expenseGroups = buildCategoryGroups(expenseCats);
+  const givingRows = buildCategoryRows(givingCats);
+  const expenseGrouped = buildCategoryGroups(expenseCats);
 
   // Debt:
   // - per-card credit card payments (bucketed from ANY "credit card*" debt category)
@@ -1348,9 +1508,28 @@ export default function BudgetPage() {
         ...v,
       };
     }),
-    ...buildCategoryRows(
-      debtCats.filter((c) => !creditCardCategoryIds.includes(c.id))
-    ),
+    ...debtAccounts.map((d) => {
+      const key = `DEBT::${d.id}`;
+      const planned = plannedMap.get(key) ?? 0;
+      const actual = actualMap.get(key) ?? 0;
+      const remaining = planned - actual;
+      return {
+        id: key,
+        label: d.name,
+        extra: `Balance: ${formatMoney(d.balance)} • APR ${
+          d.apr === null ? "--" : `${d.apr}%`
+        } • Min ${
+          d.min_payment === null ? "--" : formatMoney(d.min_payment)
+        } • Due ${d.due_date ?? "--"}`,
+        planned,
+        actual,
+        remaining,
+        editable: true,
+        indent: 0,
+        orderableCategoryId: undefined,
+        deletableCategoryId: undefined,
+      };
+    }),
   ];
 
   const miscRows = buildCategoryRows(miscCats);
@@ -1492,24 +1671,14 @@ export default function BudgetPage() {
               </div>
 
               <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                <div className="text-sm text-zinc-700 dark:text-zinc-300">Planned</div>
-                <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-                  Income:{" "}
-                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                    {formatMoney(plannedIncome)}
-                  </span>
-                </div>
                 <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                  Outflow:{" "}
-                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                    {formatMoney(plannedOut)}
-                  </span>
+                  Left to budget
                 </div>
-                <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                  Net:{" "}
-                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                    {formatMoney(plannedNet)}
-                  </span>
+                <div className="mt-2 text-2xl font-semibold">
+                  {formatMoney(plannedNet)}
+                </div>
+                <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                  Planned income - planned outflows (giving, expenses, debt, misc)
                 </div>
               </div>
             </section>
@@ -1526,11 +1695,22 @@ export default function BudgetPage() {
                     placeholder="Add income category"
                     className="min-w-[180px] rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                   />
+                  <label className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
+                    <input
+                      type="checkbox"
+                      checked={newCatIsGroup.income}
+                      onChange={(e) =>
+                        setNewCatIsGroup((prev) => ({ ...prev, income: e.target.checked }))
+                      }
+                    />
+                    Add as group
+                  </label>
                   <select
                     value={newCatParent.income}
                     onChange={(e) =>
                       setNewCatParent((prev) => ({ ...prev, income: e.target.value }))
                     }
+                    disabled={newCatIsGroup.income}
                     className="min-w-[160px] rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                   >
                     <option value="">No parent</option>
@@ -1561,6 +1741,69 @@ export default function BudgetPage() {
                 onCancelPlanned={cancelEditPlanned}
                 onStartEditPlanned={startEditPlanned}
                 setDragCategoryId={setDragCategoryId}
+                onDeleteCategory={deleteCategory}
+              />
+            </Section>
+
+            <Section
+              title="Giving"
+              header={
+                <div className="flex flex-wrap items-end gap-2">
+                  <input
+                    value={newCatName.giving}
+                    onChange={(e) =>
+                      setNewCatName((prev) => ({ ...prev, giving: e.target.value }))
+                    }
+                    placeholder="Add giving category"
+                    className="min-w-[180px] rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                  />
+                  <label className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
+                    <input
+                      type="checkbox"
+                      checked={newCatIsGroup.giving}
+                      onChange={(e) =>
+                        setNewCatIsGroup((prev) => ({ ...prev, giving: e.target.checked }))
+                      }
+                    />
+                    Add as group
+                  </label>
+                  <select
+                    value={newCatParent.giving}
+                    onChange={(e) =>
+                      setNewCatParent((prev) => ({ ...prev, giving: e.target.value }))
+                    }
+                    disabled={newCatIsGroup.giving}
+                    className="min-w-[160px] rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                  >
+                    <option value="">No parent</option>
+                    {givingCats
+                      .filter((c) => c.parent_id === null)
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    onClick={() => addCategoryForGroup("giving")}
+                    className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                  >
+                    Add
+                  </button>
+                </div>
+              }
+            >
+              <BudgetTable
+                rows={givingRows}
+                onDrop={onDropCategory}
+                editPlannedKey={editPlannedKey}
+                editPlannedAmount={editPlannedAmount}
+                setEditPlannedAmount={setEditPlannedAmount}
+                onSavePlanned={updatePlannedTotal}
+                onCancelPlanned={cancelEditPlanned}
+                onStartEditPlanned={startEditPlanned}
+                setDragCategoryId={setDragCategoryId}
+                onDeleteCategory={deleteCategory}
               />
             </Section>
 
@@ -1576,11 +1819,22 @@ export default function BudgetPage() {
                     placeholder="Add expense category"
                     className="min-w-[180px] rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                   />
+                  <label className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
+                    <input
+                      type="checkbox"
+                      checked={newCatIsGroup.expense}
+                      onChange={(e) =>
+                        setNewCatIsGroup((prev) => ({ ...prev, expense: e.target.checked }))
+                      }
+                    />
+                    Add as group
+                  </label>
                   <select
                     value={newCatParent.expense}
                     onChange={(e) =>
                       setNewCatParent((prev) => ({ ...prev, expense: e.target.value }))
                     }
+                    disabled={newCatIsGroup.expense}
                     className="min-w-[160px] rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                   >
                     <option value="">No parent</option>
@@ -1602,7 +1856,7 @@ export default function BudgetPage() {
               }
             >
               <div className="grid gap-4">
-                {expenseGroups.map((group) => (
+                {expenseGrouped.groups.map((group) => (
                   <div
                     key={group.id}
                     className="rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
@@ -1612,8 +1866,8 @@ export default function BudgetPage() {
                         {group.label}
                       </div>
                       <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                        Planned {formatMoney(group.totals.planned)} • Actual{" "}
-                        {formatMoney(group.totals.actual)} • Remaining{" "}
+                        Planned {formatMoney(group.totals.planned)} - Actual{" "}
+                        {formatMoney(group.totals.actual)} - Remaining{" "}
                         {formatMoney(group.totals.remaining)}
                       </div>
                     </div>
@@ -1628,47 +1882,40 @@ export default function BudgetPage() {
                         onCancelPlanned={cancelEditPlanned}
                         onStartEditPlanned={startEditPlanned}
                         setDragCategoryId={setDragCategoryId}
+                        onDeleteCategory={deleteCategory}
                       />
                     </div>
                   </div>
                 ))}
+                {expenseGrouped.ungrouped.length > 0 && (
+                  <div className="rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950">
+                    <div className="font-semibold text-zinc-900 dark:text-zinc-100">
+                      Ungrouped
+                    </div>
+                    <div className="mt-3">
+                      <BudgetTable
+                        rows={expenseGrouped.ungrouped}
+                        onDrop={onDropCategory}
+                        editPlannedKey={editPlannedKey}
+                        editPlannedAmount={editPlannedAmount}
+                        setEditPlannedAmount={setEditPlannedAmount}
+                        onSavePlanned={updatePlannedTotal}
+                        onCancelPlanned={cancelEditPlanned}
+                        onStartEditPlanned={startEditPlanned}
+                        setDragCategoryId={setDragCategoryId}
+                        onDeleteCategory={deleteCategory}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </Section>
 
             <Section
               title="Debt"
               header={
-                <div className="flex flex-wrap items-end gap-2">
-                  <input
-                    value={newCatName.debt}
-                    onChange={(e) =>
-                      setNewCatName((prev) => ({ ...prev, debt: e.target.value }))
-                    }
-                    placeholder="Add debt category"
-                    className="min-w-[180px] rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                  />
-                  <select
-                    value={newCatParent.debt}
-                    onChange={(e) =>
-                      setNewCatParent((prev) => ({ ...prev, debt: e.target.value }))
-                    }
-                    className="min-w-[160px] rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                  >
-                    <option value="">No parent</option>
-                    {debtCats
-                      .filter((c) => c.parent_id === null)
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                  </select>
-                  <button
-                    onClick={() => addCategoryForGroup("debt")}
-                    className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
-                  >
-                    Add
-                  </button>
+                <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                  Debt rows are sourced from your debt accounts (right panel).
                 </div>
               }
             >
@@ -1682,6 +1929,7 @@ export default function BudgetPage() {
                 onCancelPlanned={cancelEditPlanned}
                 onStartEditPlanned={startEditPlanned}
                 setDragCategoryId={setDragCategoryId}
+                onDeleteCategory={deleteCategory}
               />
               <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
                 Credit card payments are shown per card. We treat any Debt category containing{" "}
@@ -1713,11 +1961,22 @@ export default function BudgetPage() {
                     placeholder="Add misc category"
                     className="min-w-[180px] rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                   />
+                  <label className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
+                    <input
+                      type="checkbox"
+                      checked={newCatIsGroup.misc}
+                      onChange={(e) =>
+                        setNewCatIsGroup((prev) => ({ ...prev, misc: e.target.checked }))
+                      }
+                    />
+                    Add as group
+                  </label>
                   <select
                     value={newCatParent.misc}
                     onChange={(e) =>
                       setNewCatParent((prev) => ({ ...prev, misc: e.target.value }))
                     }
+                    disabled={newCatIsGroup.misc}
                     className="min-w-[160px] rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                   >
                     <option value="">No parent</option>
@@ -1748,6 +2007,7 @@ export default function BudgetPage() {
                 onCancelPlanned={cancelEditPlanned}
                 onStartEditPlanned={startEditPlanned}
                 setDragCategoryId={setDragCategoryId}
+                onDeleteCategory={deleteCategory}
               />
             </Section>
 
@@ -1830,7 +2090,7 @@ export default function BudgetPage() {
                                   className="min-w-[200px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                                 >
                                   <option value="">Select category</option>
-                                  {(["income", "expense", "debt", "misc"] as const).map((group) => {
+                                  {(["income", "giving", "expense", "debt", "misc"] as const).map((group) => {
                                     const groupCats = categories.filter((c) => c.group_name === group);
                                     if (groupCats.length === 0) return null;
                                     return (
@@ -1838,11 +2098,42 @@ export default function BudgetPage() {
                                         key={group}
                                         label={group.charAt(0).toUpperCase() + group.slice(1)}
                                       >
-                                        {groupCats.map((c) => (
-                                          <option key={c.id} value={c.id}>
-                                            {c.name}
-                                          </option>
-                                        ))}
+                                        {(() => {
+                                          const parents = groupCats
+                                            .filter((c) => c.parent_id === null)
+                                            .slice()
+                                            .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+                                          const childrenByParent = new Map<string, Category[]>();
+                                          for (const c of groupCats) {
+                                            if (!c.parent_id) continue;
+                                            if (!childrenByParent.has(c.parent_id)) childrenByParent.set(c.parent_id, []);
+                                            childrenByParent.get(c.parent_id)!.push(c);
+                                          }
+                                          for (const [k, arr] of childrenByParent.entries()) {
+                                            arr.sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+                                            childrenByParent.set(k, arr);
+                                          }
+                                          const opts: JSX.Element[] = [];
+                                          for (const p of parents) {
+                                            const kids = childrenByParent.get(p.id) ?? [];
+                                            if (kids.length) {
+                                              for (const k of kids) {
+                                                opts.push(
+                                                  <option key={k.id} value={k.id}>
+                                                    {p.name} / {k.name}
+                                                  </option>
+                                                );
+                                              }
+                                            } else {
+                                              opts.push(
+                                                <option key={p.id} value={p.id}>
+                                                  {p.name}
+                                                </option>
+                                              );
+                                            }
+                                          }
+                                          return opts;
+                                        })()}
                                       </optgroup>
                                     );
                                   })}
@@ -1965,7 +2256,7 @@ export default function BudgetPage() {
                     className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                   >
                     <option value="">Select category</option>
-                    {(["income", "expense", "debt", "misc"] as const).map((group) => {
+                    {(["income", "giving", "expense", "debt", "misc"] as const).map((group) => {
                       const groupCats = categories.filter((c) => c.group_name === group);
                       if (groupCats.length === 0) return null;
                       return (
@@ -1973,11 +2264,42 @@ export default function BudgetPage() {
                           key={group}
                           label={group.charAt(0).toUpperCase() + group.slice(1)}
                         >
-                          {groupCats.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
+                          {(() => {
+                            const parents = groupCats
+                              .filter((c) => c.parent_id === null)
+                              .slice()
+                              .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+                            const childrenByParent = new Map<string, Category[]>();
+                            for (const c of groupCats) {
+                              if (!c.parent_id) continue;
+                              if (!childrenByParent.has(c.parent_id)) childrenByParent.set(c.parent_id, []);
+                              childrenByParent.get(c.parent_id)!.push(c);
+                            }
+                            for (const [k, arr] of childrenByParent.entries()) {
+                              arr.sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+                              childrenByParent.set(k, arr);
+                            }
+                            const opts: JSX.Element[] = [];
+                            for (const p of parents) {
+                              const kids = childrenByParent.get(p.id) ?? [];
+                              if (kids.length) {
+                                for (const k of kids) {
+                                  opts.push(
+                                    <option key={k.id} value={k.id}>
+                                      {p.name} / {k.name}
+                                    </option>
+                                  );
+                                }
+                              } else {
+                                opts.push(
+                                  <option key={p.id} value={p.id}>
+                                    {p.name}
+                                  </option>
+                                );
+                              }
+                            }
+                            return opts;
+                          })()}
                         </optgroup>
                       );
                     })}
@@ -2184,6 +2506,34 @@ export default function BudgetPage() {
                         {d.apr === null ? "--" : `${d.apr}%`} • Min{" "}
                         {d.min_payment === null ? "--" : formatMoney(d.min_payment)} • Due{" "}
                         {d.due_date ?? "--"}
+                      </div>
+                      <div className="mt-2 flex items-center justify-end gap-2">
+                        {confirmDeleteDebtId === d.id ? (
+                          <>
+                            <span className="text-xs text-zinc-600 dark:text-zinc-400">
+                              Delete this debt account?
+                            </span>
+                            <button
+                              onClick={() => deleteDebtAccount(d)}
+                              className="rounded-md border border-red-300 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-zinc-950 dark:text-red-200 dark:hover:bg-red-950"
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteDebtId(null)}
+                              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDeleteDebtId(d.id)}
+                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                          >
+                            Delete
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))
