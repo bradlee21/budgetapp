@@ -18,6 +18,7 @@ import {
   type ReactNode,
   type ReactElement,
 } from "react";
+import { useRouter } from "next/navigation";
 
 type Category = {
   id: string;
@@ -296,6 +297,7 @@ function BudgetTable({
 }
 
 export default function BudgetPage() {
+  const router = useRouter();
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [monthOffset, setMonthOffset] = useState(0);
@@ -1837,6 +1839,17 @@ export default function BudgetPage() {
     return c?.name ?? "";
   }, [creditCardCategoryIds.length, categories, primaryCreditCardCategoryId]);
 
+  async function signOutUser() {
+    setMsg("");
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      router.replace("/login");
+    } catch (e: any) {
+      setMsg(e?.message ?? String(e));
+    }
+  }
+
   return (
     <AuthGate>
       <main className="mx-auto mt-10 max-w-6xl px-4">
@@ -1873,6 +1886,13 @@ export default function BudgetPage() {
               className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
             >
               Debug: {showDebug ? "On" : "Off"}
+            </button>
+
+            <button
+              onClick={signOutUser}
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+            >
+              Log out
             </button>
           </div>
         </div>

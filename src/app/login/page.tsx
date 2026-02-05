@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
 
@@ -14,6 +15,7 @@ const supabase =
     : null;
 
 export default function LoginPage() {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -41,6 +43,12 @@ setUser(data.user ?? null);
       });
     })();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      router.replace("/budget");
+    }
+  }, [user, router]);
 
   async function signUp() {
     setMsg("");
@@ -79,45 +87,9 @@ setUser(data.user ?? null);
       setMsg(e?.message ?? String(e));
     }
   }
-async function createDefaultCategories() {
-  setMsg("");
-  try {
-    if (!supabase) throw new Error("Supabase client not initialized.");
-    if (!user) throw new Error("You must be signed in.");
-
-    const rows = [
-      { user_id: user.id, group_name: "income", name: "Paycheck" },
-      { user_id: user.id, group_name: "expense", name: "Rent/Mortgage" },
-      { user_id: user.id, group_name: "debt", name: "Credit Card" },
-      { user_id: user.id, group_name: "misc", name: "Other" },
-    ];
-
-    const { error } = await supabase.from("categories").insert(rows);
-    if (error) throw error;
-
-    setMsg("Default categories inserted. RLS is working.");
-  } catch (e: any) {
-    setMsg(e?.message ?? String(e));
-  }
-}
-
-  const envOk = Boolean(supabaseUrl && supabaseAnonKey);
-
   return (
-  <main className="mx-auto mt-10 max-w-md px-4 text-sm">
-    <h1 className="text-2xl font-bold">Login</h1>
-
-    <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100">
-      <div className="font-semibold">Env loaded:</div>
-      <div className="mt-1 text-xs opacity-80">
-        If Env loaded = NO, fix .env.local and restart npm run dev.
-      </div>
-      <div className="mt-2">{envOk ? "YES" : "NO"}</div>
-    </div>
-
-    <p className="mt-3 text-zinc-700 dark:text-zinc-300">
-      Status: {user ? `Signed in as ${user.email}` : "Signed out"}
-    </p>
+    <main className="mx-auto mt-10 max-w-md px-4 text-sm">
+      <h1 className="text-2xl font-bold">Login</h1>
 
     <div className="mt-6 grid gap-3">
       <label className="grid gap-1">
@@ -161,15 +133,6 @@ async function createDefaultCategories() {
           Sign out
         </button>
       </div>
-
-      {user && (
-        <button
-          onClick={createDefaultCategories}
-          className="mt-2 rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
-        >
-          Create default categories
-        </button>
-      )}
 
       {msg && (
         <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100">
