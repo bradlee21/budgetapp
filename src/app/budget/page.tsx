@@ -899,6 +899,10 @@ export default function BudgetPage() {
           return;
         }
       }
+      if (!nonCcDebtCat) {
+        setMsg("Create a non-credit-card Debt category first.");
+        return;
+      }
       categoryId = nonCcDebtCat.id;
       debtAccountId = target.id;
       type = "debt";
