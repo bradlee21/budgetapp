@@ -170,11 +170,18 @@ function BudgetTable({
               }
               onDragEnd={r.orderableCategoryId ? () => setDragCategoryId(null) : undefined}
               onDragOver={
-                r.orderableCategoryId ? (e) => e.preventDefault() : undefined
+                r.orderableCategoryId
+                  ? (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }
+                  : undefined
               }
               onDrop={
                 r.orderableCategoryId
                   ? (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       const draggedId = e.dataTransfer.getData("text/plain");
                       if (draggedId) setDragCategoryId(draggedId);
                       onDrop(r.orderableCategoryId!, draggedId || null);
@@ -1528,6 +1535,8 @@ export default function BudgetPage() {
     return Number.isFinite(n) ? n : 0;
   }, [availableStart]);
 
+  const leftToBudget = availableStartNum + plannedNet;
+
   const availableEnd = useMemo(() => {
     return availableStartNum + plannedIncome - plannedOut;
   }, [availableStartNum, plannedIncome, plannedOut]);
@@ -1855,10 +1864,10 @@ export default function BudgetPage() {
                   Left to budget
                 </div>
                 <div className="mt-2 text-2xl font-semibold">
-                  {formatMoney(plannedNet)}
+                  {formatMoney(leftToBudget)}
                 </div>
                 <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                  Planned income - planned outflows (giving, savings, expenses, debt)
+                  Rollover start + planned income - planned outflows
                 </div>
               </div>
 
@@ -1963,10 +1972,10 @@ export default function BudgetPage() {
                       Left to budget
                     </div>
                     <div className="mt-2 text-2xl font-semibold">
-                      {formatMoney(plannedNet)}
+                      {formatMoney(leftToBudget)}
                     </div>
                     <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                      Planned income - planned outflows (giving, savings, expenses, debt)
+                      Rollover start + planned income - planned outflows
                     </div>
                   </div>
 
