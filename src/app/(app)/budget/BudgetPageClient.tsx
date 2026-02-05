@@ -138,7 +138,8 @@ function BudgetTable({
   const showOrder = rows.some((r) => r.orderableCategoryId);
   const showDelete = rows.some((r) => r.deletableCategoryId);
   return (
-    <table className="w-full border-collapse text-sm">
+    <div className="w-full overflow-x-auto">
+      <table className="min-w-[520px] w-full border-collapse text-sm">
       <thead className="text-zinc-700 dark:text-zinc-300">
         <tr>
           <th className="p-2 text-left">Item</th>
@@ -293,7 +294,8 @@ function BudgetTable({
           ))
         )}
       </tbody>
-    </table>
+      </table>
+    </div>
   );
 }
 
@@ -3119,7 +3121,7 @@ export default function BudgetPage() {
                   />
                 </label>
               </div>
-              <div className="mt-3 max-h-[420px] overflow-y-auto">
+              <div className="mt-3 max-h-[420px] overflow-x-auto overflow-y-auto">
                 <table className="w-full border-collapse text-sm">
                   <thead className="bg-zinc-100 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
                     <tr>
