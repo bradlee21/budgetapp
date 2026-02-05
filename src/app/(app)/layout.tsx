@@ -6,7 +6,7 @@ export default function AppLayout({
   return (
     <>
       <header className="border-b border-zinc-200 bg-white/70 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/70">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-3 py-3 sm:px-4">
           <div className="font-semibold">Budget App</div>
 
           <nav className="flex flex-wrap gap-2 text-sm">
