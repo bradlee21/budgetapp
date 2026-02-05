@@ -725,7 +725,7 @@ export default function TransactionsPage() {
                       {isEditing ? (
                         <>
                           <button
-                            onClick={() => saveEditTxn(t)}
+                            onClick={() => saveEdit(t)}
                             className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
                           >
                             Save
