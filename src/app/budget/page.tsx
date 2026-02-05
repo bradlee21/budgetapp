@@ -1,5 +1,8 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import AuthGate from "@/components/AuthGate";
 import { supabase } from "@/lib/supabaseClient";
 import {
