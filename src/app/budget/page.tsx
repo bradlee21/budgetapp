@@ -1128,7 +1128,9 @@ export default function BudgetPage() {
     return data as Category;
   }
 
-  async function addGroup(group: Category["group_name"]) {
+  async function addGroup(
+    group: "income" | "giving" | "savings" | "expense" | "debt"
+  ) {
     setMsg("");
     try {
       const name = newGroupName[group].trim();
@@ -2067,6 +2069,18 @@ export default function BudgetPage() {
                           .filter((t) => t.category_id && creditCardCategoryIds.includes(t.category_id))
                           .reduce((s, t) => s + t.amount, 0)
                       )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                    <div className="text-sm text-zinc-700 dark:text-zinc-300">
+                      Install app
+                    </div>
+                    <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+                      iOS: Safari → Share → Add to Home Screen.
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                      Android/desktop: use your browser’s Install option.
                     </div>
                   </div>
                 </div>
@@ -3190,6 +3204,16 @@ export default function BudgetPage() {
                     </div>
                   ))
                 )}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="text-sm text-zinc-700 dark:text-zinc-300">Install app</div>
+              <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+                iOS: Safari → Share → Add to Home Screen.
+              </div>
+              <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                Android/desktop: use your browser’s Install option.
               </div>
             </div>
 

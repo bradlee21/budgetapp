@@ -1,8 +1,25 @@
 import "./globals.css";
+import type { Metadata } from "next";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Budget App",
   description: "Simple budgeting app",
+  applicationName: "Budget App",
+  manifest: "/manifest.webmanifest",
+  themeColor: "#0f172a",
+  appleWebApp: {
+    capable: true,
+    title: "Budget App",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({
@@ -36,6 +53,7 @@ export default function RootLayout({
         </header>
 
         {children}
+        <ServiceWorkerRegister />
       </body>
     </html>
   );
