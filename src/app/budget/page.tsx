@@ -891,7 +891,9 @@ export default function BudgetPage() {
             name: "Debt Payment",
             parentId: null,
           });
-          nonCcDebtCat = created ?? null;
+          if (created) {
+            nonCcDebtCat = created;
+          }
         } catch (e: any) {
           setMsg(e?.message ?? "Create a non-credit-card Debt category first.");
           return;
