@@ -3,6 +3,7 @@
 import AuthGate from "@/components/AuthGate";
 import { supabase } from "@/lib/supabaseClient";
 import { addMonths, firstDayOfMonth, nextMonth, toYMD } from "@/lib/date";
+import { formatMoney } from "@/lib/format";
 import { useEffect, useMemo, useState } from "react";
 
 type Category = {
