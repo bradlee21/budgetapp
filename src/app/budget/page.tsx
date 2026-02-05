@@ -1525,7 +1525,6 @@ export default function BudgetPage() {
             t.debt_account_id === debt.id ? { ...t, debt_account_id: null } : t
           )
         );
-        setConfirmDeleteDebtId(null);
         setMsg("Debt account deleted.");
       };
       setConfirmState({
