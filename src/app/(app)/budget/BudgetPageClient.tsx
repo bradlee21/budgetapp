@@ -1943,7 +1943,7 @@ export default function BudgetPage() {
 
   return (
     <AuthGate>
-      <main className="mx-auto mt-6 w-full max-w-6xl px-3 sm:mt-10 sm:px-4">
+      <main className="mx-auto mt-6 w-full max-w-6xl px-4 sm:mt-10 sm:px-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Budget</h1>
