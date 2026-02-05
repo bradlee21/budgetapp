@@ -2749,7 +2749,7 @@ export default function BudgetPage() {
                               arr.sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
                               childrenByParent.set(k, arr);
                             }
-                            const opts: JSX.Element[] = [];
+                            const opts: ReactElement[] = [];
                             for (const p of parents) {
                               const kids = childrenByParent.get(p.id) ?? [];
                               if (kids.length) {
@@ -2946,7 +2946,7 @@ export default function BudgetPage() {
                                             arr.sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
                                             childrenByParent.set(k, arr);
                                           }
-                                          const opts: JSX.Element[] = [];
+                                          const opts: ReactElement[] = [];
                                           for (const p of parents) {
                                             const kids = childrenByParent.get(p.id) ?? [];
                                             if (kids.length) {
