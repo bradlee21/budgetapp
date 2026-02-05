@@ -138,164 +138,249 @@ function BudgetTable({
   const showOrder = rows.some((r) => r.orderableCategoryId);
   const showDelete = rows.some((r) => r.deletableCategoryId);
   return (
-    <div className="w-full overflow-x-auto">
-      <table className="min-w-[520px] w-full border-collapse text-sm">
-      <thead className="text-zinc-700 dark:text-zinc-300">
-        <tr>
-          <th className="p-2 text-left">Item</th>
-          {showOrder && <th className="p-2 text-right">Order</th>}
-          <th className="p-2 text-right">{plannedLabel}</th>
-          <th className="p-2 text-right">{actualLabel}</th>
-          <th className="p-2 text-right">{remainingLabel}</th>
-          {showDelete && <th className="p-2 text-right"></th>}
-        </tr>
-      </thead>
-      <tbody className="text-zinc-900 dark:text-zinc-100">
+    <>
+      <div className="space-y-3 sm:hidden">
         {rows.length === 0 ? (
-          <tr>
-            <td
-              className="p-2 text-zinc-600 dark:text-zinc-300"
-              colSpan={showOrder ? (showDelete ? 6 : 5) : showDelete ? 5 : 4}
-            >
-              Nothing here yet.
-            </td>
-          </tr>
+          <div className="rounded-md border border-zinc-200 bg-white p-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
+            Nothing here yet.
+          </div>
         ) : (
           rows.map((r) => (
-            <tr
+            <div
               key={r.id}
-              className="group border-t border-zinc-200 dark:border-zinc-800"
-              draggable={!!r.orderableCategoryId}
-              onDragStart={
-                r.orderableCategoryId
-                  ? (e) => {
-                      setDragCategoryId(r.orderableCategoryId!);
-                      e.dataTransfer.setData(
-                        "text/plain",
-                        r.orderableCategoryId!
-                      );
-                      e.dataTransfer.effectAllowed = "move";
-                    }
-                  : undefined
-              }
-              onDragEnd={r.orderableCategoryId ? () => setDragCategoryId(null) : undefined}
-              onDragOver={
-                r.orderableCategoryId
-                  ? (e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }
-                  : undefined
-              }
-              onDrop={
-                r.orderableCategoryId
-                  ? (e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const draggedId = e.dataTransfer.getData("text/plain");
-                      if (draggedId) setDragCategoryId(draggedId);
-                      onDrop(r.orderableCategoryId!, draggedId || null);
-                    }
-                  : undefined
-              }
+              className="rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
             >
-              <td className="p-2">
-                <div className="flex items-center gap-2">
-                  <div
-                    className="font-medium"
-                    style={{ paddingLeft: (r.indent ?? 0) * 16 }}
-                  >
-                    {r.label}
-                  </div>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-medium">{r.label}</div>
+                  {r.extra && (
+                    <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                      {r.extra}
+                    </div>
+                  )}
                 </div>
-                {r.extra && (
-                  <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                    {r.extra}
-                  </div>
-                )}
-              </td>
-              {showOrder && (
-                <td className="p-2 text-right">
-                  {r.orderableCategoryId ? (
-                    <div className="flex items-center justify-end">
-                      <button
-                        type="button"
-                        title="Drag to reorder"
-                        aria-label="Drag to reorder"
-                        onMouseDown={(e) => e.stopPropagation()}
-                        className="cursor-grab rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 opacity-0 transition-opacity hover:bg-zinc-100 group-hover:opacity-100 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
-                      >
-                        ::
-                      </button>
+                {showDelete && r.deletableCategoryId ? (
+                  <button
+                    onClick={() => onDeleteCategory(r.deletableCategoryId!)}
+                    className="rounded-md border border-red-300 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-zinc-950 dark:text-red-200 dark:hover:bg-red-950"
+                    aria-label="Delete"
+                    title="Delete"
+                  >
+                    X
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                <div>Planned</div>
+                <div className="text-right">{actualLabel}</div>
+                <div className="text-right">{remainingLabel}</div>
+              </div>
+              <div className="mt-1 grid grid-cols-3 gap-2 text-sm tabular-nums text-zinc-900 dark:text-zinc-100">
+                <div>
+                  {r.editable === false ? (
+                    formatMoney(r.planned)
+                  ) : editPlannedKey === r.id ? (
+                    <div className="grid gap-2">
+                      <input
+                        value={editPlannedAmount}
+                        onChange={(e) => setEditPlannedAmount(e.target.value)}
+                        inputMode="decimal"
+                        autoFocus
+                        className="w-full rounded-md border border-zinc-300 bg-white p-2 text-right text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => onSavePlanned(r.id)}
+                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={onCancelPlanned}
+                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
                   ) : (
-                    <span className="text-zinc-500">--</span>
+                    <button
+                      onClick={() => onStartEditPlanned(r.id, r.planned)}
+                      className="rounded-md px-2 py-1 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
+                      title="Edit planned total"
+                    >
+                      {formatMoney(r.planned)}
+                    </button>
                   )}
-                </td>
-              )}
-              <td className="p-2 text-right tabular-nums">
-                {r.editable === false ? (
-                  formatMoney(r.planned)
-                ) : editPlannedKey === r.id ? (
-                  <div className="flex items-center justify-end gap-2">
-                    <input
-                      value={editPlannedAmount}
-                      onChange={(e) => setEditPlannedAmount(e.target.value)}
-                      inputMode="decimal"
-                      autoFocus
-                      className="w-[120px] rounded-md border border-zinc-300 bg-white p-2 text-right text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                    />
-                    <button
-                      onClick={() => onSavePlanned(r.id)}
-                      className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={onCancelPlanned}
-                      className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => onStartEditPlanned(r.id, r.planned)}
-                    className="rounded-md px-2 py-1 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
-                    title="Edit planned total"
-                  >
-                    {formatMoney(r.planned)}
-                  </button>
-                )}
-              </td>
-              <td className="p-2 text-right tabular-nums">
-                {formatMoney(r.actual)}
-              </td>
-              <td className="p-2 text-right tabular-nums">
-                {formatMoney(r.remaining)}
-              </td>
-              {showDelete && (
-                <td className="p-2 text-right">
-                  {r.deletableCategoryId ? (
-                    <button
-                      onClick={() => onDeleteCategory(r.deletableCategoryId!)}
-                      className="rounded-md border border-red-300 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-zinc-950 dark:text-red-200 dark:hover:bg-red-950"
-                      aria-label="Delete"
-                      title="Delete"
-                    >
-                      X
-                    </button>
-                  ) : (
-                    <span className="text-zinc-500">--</span>
-                  )}
-                </td>
-              )}
-            </tr>
+                </div>
+                <div className="text-right">{formatMoney(r.actual)}</div>
+                <div className="text-right">{formatMoney(r.remaining)}</div>
+              </div>
+            </div>
           ))
         )}
-      </tbody>
-      </table>
-    </div>
+      </div>
+
+      <div className="hidden w-full overflow-x-auto sm:block">
+        <table className="min-w-[520px] w-full border-collapse text-sm">
+          <thead className="text-zinc-700 dark:text-zinc-300">
+            <tr>
+              <th className="p-2 text-left">Item</th>
+              {showOrder && <th className="p-2 text-right">Order</th>}
+              <th className="p-2 text-right">{plannedLabel}</th>
+              <th className="p-2 text-right">{actualLabel}</th>
+              <th className="p-2 text-right">{remainingLabel}</th>
+              {showDelete && <th className="p-2 text-right"></th>}
+            </tr>
+          </thead>
+          <tbody className="text-zinc-900 dark:text-zinc-100">
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  className="p-2 text-zinc-600 dark:text-zinc-300"
+                  colSpan={showOrder ? (showDelete ? 6 : 5) : showDelete ? 5 : 4}
+                >
+                  Nothing here yet.
+                </td>
+              </tr>
+            ) : (
+              rows.map((r) => (
+                <tr
+                  key={r.id}
+                  className="group border-t border-zinc-200 dark:border-zinc-800"
+                  draggable={!!r.orderableCategoryId}
+                  onDragStart={
+                    r.orderableCategoryId
+                      ? (e) => {
+                          setDragCategoryId(r.orderableCategoryId!);
+                          e.dataTransfer.setData(
+                            "text/plain",
+                            r.orderableCategoryId!
+                          );
+                          e.dataTransfer.effectAllowed = "move";
+                        }
+                      : undefined
+                  }
+                  onDragEnd={r.orderableCategoryId ? () => setDragCategoryId(null) : undefined}
+                  onDragOver={
+                    r.orderableCategoryId
+                      ? (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }
+                      : undefined
+                  }
+                  onDrop={
+                    r.orderableCategoryId
+                      ? (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const draggedId = e.dataTransfer.getData("text/plain");
+                          if (draggedId) setDragCategoryId(draggedId);
+                          onDrop(r.orderableCategoryId!, draggedId || null);
+                        }
+                      : undefined
+                  }
+                >
+                  <td className="p-2">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="font-medium"
+                        style={{ paddingLeft: (r.indent ?? 0) * 16 }}
+                      >
+                        {r.label}
+                      </div>
+                    </div>
+                    {r.extra && (
+                      <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                        {r.extra}
+                      </div>
+                    )}
+                  </td>
+                  {showOrder && (
+                    <td className="p-2 text-right">
+                      {r.orderableCategoryId ? (
+                        <div className="flex items-center justify-end">
+                          <button
+                            type="button"
+                            title="Drag to reorder"
+                            aria-label="Drag to reorder"
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="cursor-grab rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 opacity-0 transition-opacity hover:bg-zinc-100 group-hover:opacity-100 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                          >
+                            ::
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-zinc-500">--</span>
+                      )}
+                    </td>
+                  )}
+                  <td className="p-2 text-right tabular-nums">
+                    {r.editable === false ? (
+                      formatMoney(r.planned)
+                    ) : editPlannedKey === r.id ? (
+                      <div className="flex items-center justify-end gap-2">
+                        <input
+                          value={editPlannedAmount}
+                          onChange={(e) => setEditPlannedAmount(e.target.value)}
+                          inputMode="decimal"
+                          autoFocus
+                          className="w-[120px] rounded-md border border-zinc-300 bg-white p-2 text-right text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                        <button
+                          onClick={() => onSavePlanned(r.id)}
+                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={onCancelPlanned}
+                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => onStartEditPlanned(r.id, r.planned)}
+                        className="rounded-md px-2 py-1 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
+                        title="Edit planned total"
+                      >
+                        {formatMoney(r.planned)}
+                      </button>
+                    )}
+                  </td>
+                  <td className="p-2 text-right tabular-nums">
+                    {formatMoney(r.actual)}
+                  </td>
+                  <td className="p-2 text-right tabular-nums">
+                    {formatMoney(r.remaining)}
+                  </td>
+                  {showDelete && (
+                    <td className="p-2 text-right">
+                      {r.deletableCategoryId ? (
+                        <button
+                          onClick={() => onDeleteCategory(r.deletableCategoryId!)}
+                          className="rounded-md border border-red-300 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-zinc-950 dark:text-red-200 dark:hover:bg-red-950"
+                          aria-label="Delete"
+                          title="Delete"
+                        >
+                          X
+                        </button>
+                      ) : (
+                        <span className="text-zinc-500">--</span>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
