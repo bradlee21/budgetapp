@@ -38,6 +38,7 @@ type CreditCard = {
 type DebtAccount = {
   id: string;
   name: string;
+  debt_type: "credit_card" | "loan" | "mortgage" | "student_loan" | "other";
   balance: number;
   apr: number | null;
   min_payment: number | null;
@@ -340,26 +341,32 @@ export default function BudgetPage() {
   const [txnDate, setTxnDate] = useState(toYMD(new Date()));
   const [txnAmount, setTxnAmount] = useState("");
   const [txnCategoryId, setTxnCategoryId] = useState("");
-  const [txnCardId, setTxnCardId] = useState("");
+  const [txnCardSelectId, setTxnCardSelectId] = useState("");
   const [txnDebtAccountId, setTxnDebtAccountId] = useState("");
   const [txnDescription, setTxnDescription] = useState("");
   const [editTxnId, setEditTxnId] = useState<string | null>(null);
   const [editTxnDate, setEditTxnDate] = useState("");
   const [editTxnAmount, setEditTxnAmount] = useState("");
   const [editTxnCategoryId, setEditTxnCategoryId] = useState("");
-  const [editTxnCardId, setEditTxnCardId] = useState("");
+  const [editTxnCardSelectId, setEditTxnCardSelectId] = useState("");
   const [editTxnDebtAccountId, setEditTxnDebtAccountId] = useState("");
   const [editTxnDescription, setEditTxnDescription] = useState("");
   const [txnFilterGroup, setTxnFilterGroup] = useState<
     "all" | "income" | "giving" | "savings" | "expense" | "debt"
   >("all");
   const [txnSearch, setTxnSearch] = useState("");
+  const [txnDateError, setTxnDateError] = useState("");
+  const [editTxnDateError, setEditTxnDateError] = useState("");
 
   const [debtName, setDebtName] = useState("");
+  const [debtType, setDebtType] = useState<
+    "credit_card" | "loan" | "mortgage" | "student_loan" | "other"
+  >("credit_card");
   const [debtBalance, setDebtBalance] = useState("");
   const [debtApr, setDebtApr] = useState("");
   const [debtMinPayment, setDebtMinPayment] = useState("");
   const [debtDueDate, setDebtDueDate] = useState("");
+  const [debtDueDateError, setDebtDueDateError] = useState("");
   const [addIncomeOpen, setAddIncomeOpen] = useState(false);
   const [addGivingOpen, setAddGivingOpen] = useState(false);
   const [addSavingsOpen, setAddSavingsOpen] = useState(false);
@@ -411,6 +418,44 @@ export default function BudgetPage() {
     return map;
   }, [debtAccounts]);
 
+  const creditCardDebtAccounts = useMemo(() => {
+    return debtAccounts.filter((d) => d.debt_type === "credit_card");
+  }, [debtAccounts]);
+
+  const cardLikeAccounts = useMemo(
+    () => [
+      ...cards.map((c) => ({
+        id: c.id,
+        name: c.name,
+        balance: Number(c.current_balance),
+        kind: "card" as const,
+      })),
+      ...creditCardDebtAccounts.map((d) => ({
+        id: d.id,
+        name: d.name,
+        balance: Number(d.balance),
+        kind: "debt" as const,
+      })),
+    ],
+    [cards, creditCardDebtAccounts]
+  );
+
+  const debtTypeLabel = (value: DebtAccount["debt_type"]) => {
+    switch (value) {
+      case "credit_card":
+        return "Credit card";
+      case "loan":
+        return "Loan";
+      case "mortgage":
+        return "Mortgage";
+      case "student_loan":
+        return "Student loan";
+      case "other":
+      default:
+        return "Other";
+    }
+  };
+
   // NEW RULE: any DEBT category containing "credit card" is treated as "credit card payment"
   const creditCardCategoryIds = useMemo(() => {
     return categories
@@ -445,10 +490,6 @@ export default function BudgetPage() {
     editTxnCategoryId !== "" && creditCardCategoryIds.includes(editTxnCategoryId);
 
   useEffect(() => {
-    if (!txnNeedsCard) setTxnCardId("");
-  }, [txnNeedsCard]);
-
-  useEffect(() => {
     if (!txnNeedsDebtAccount) setTxnDebtAccountId("");
   }, [txnNeedsDebtAccount]);
 
@@ -457,7 +498,11 @@ export default function BudgetPage() {
   }, [editTxnNeedsDebtAccount]);
 
   useEffect(() => {
-    if (!editTxnNeedsCard) setEditTxnCardId("");
+    if (!txnNeedsCard) setTxnCardSelectId("");
+  }, [txnNeedsCard]);
+
+  useEffect(() => {
+    if (!editTxnNeedsCard) setEditTxnCardSelectId("");
   }, [editTxnNeedsCard]);
 
   async function seedDefaultCategories(seedUserId: string) {
@@ -603,13 +648,14 @@ export default function BudgetPage() {
 
       const { data: debts, error: debtErr } = await supabase
         .from("debt_accounts")
-        .select("id, name, balance, apr, min_payment, due_date")
+        .select("id, name, debt_type, balance, apr, min_payment, due_date")
         .order("name", { ascending: true });
       if (debtErr) throw debtErr;
       setDebtAccounts(
         (debts ?? []).map((d: any) => ({
           id: d.id,
           name: d.name,
+          debt_type: (d.debt_type ?? "credit_card") as DebtAccount["debt_type"],
           balance: Number(d.balance),
           apr: d.apr === null ? null : Number(d.apr),
           min_payment: d.min_payment === null ? null : Number(d.min_payment),
@@ -762,7 +808,7 @@ export default function BudgetPage() {
     const m = new Map<string, number>();
     for (const p of planRows) {
       if (creditCardCategoryIds.includes(p.category_id)) {
-        const key = `CC::${p.credit_card_id ?? "none"}`;
+        const key = `CC::${p.credit_card_id ?? p.debt_account_id ?? "none"}`;
         m.set(key, (m.get(key) ?? 0) + p.amount);
       } else if (p.debt_account_id) {
         const key = `DEBT::${p.debt_account_id}`;
@@ -781,7 +827,7 @@ export default function BudgetPage() {
       if (!t.category_id) continue;
 
       if (creditCardCategoryIds.includes(t.category_id)) {
-        const key = `CC::${t.credit_card_id ?? "none"}`;
+        const key = `CC::${t.credit_card_id ?? t.debt_account_id ?? "none"}`;
         m.set(key, (m.get(key) ?? 0) + t.amount);
       } else if (t.debt_account_id) {
         const key = `DEBT::${t.debt_account_id}`;
@@ -1366,7 +1412,8 @@ export default function BudgetPage() {
 
     if (creditCardCategoryIds.includes(catId)) {
       const card = ccId ? cardById.get(ccId) : null;
-      const cardName = card?.name ?? "Credit Card";
+      const debtCard = !card && debtId ? debtById.get(debtId) : null;
+      const cardName = card?.name ?? debtCard?.name ?? "Credit Card";
       return `Credit Card Payment - ${cardName}`;
     }
 
@@ -1379,22 +1426,46 @@ export default function BudgetPage() {
     return catName;
   }
 
+  function validateDateInput(
+    value: string,
+    options: { allowEmpty?: boolean } = {}
+  ): string {
+    if (!value) {
+      return options.allowEmpty ? "" : "Date is required.";
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return "Use a valid date.";
+    }
+    const [yStr, mStr, dStr] = value.split("-");
+    const year = Number(yStr);
+    const month = Number(mStr);
+    const day = Number(dStr);
+    if (year < 2000 || year > 2100) return "Date must be between 2000 and 2100.";
+    if (month < 1 || month > 12) return "Use a valid date.";
+    const maxDay = new Date(year, month, 0).getDate();
+    if (day < 1 || day > maxDay) return "Use a valid date.";
+    return "";
+  }
+
   async function addTxn() {
     setMsg("");
     try {
       if (!userId) return;
       const amt = Number(txnAmount);
-      if (!txnDate) throw new Error("Pick a date.");
+      const dateErr = validateDateInput(txnDate);
+      setTxnDateError(dateErr);
+      if (dateErr) throw new Error(dateErr);
       if (!Number.isFinite(amt)) throw new Error("Enter a valid amount.");
       if (!txnCategoryId) throw new Error("Pick a category.");
-      if (txnNeedsCard && !txnCardId) throw new Error("Select a credit card.");
+      const cardSelection = txnNeedsCard ? parseCardSelectId(txnCardSelectId) : null;
+      if (txnNeedsCard && !cardSelection) throw new Error("Select a credit card.");
       if (txnNeedsDebtAccount && !txnDebtAccountId) throw new Error("Select a debt account.");
 
       const computedName = fallbackTxnName(
         txnCategoryId,
-        txnNeedsCard ? txnCardId : null,
+        cardSelection?.kind === "card" ? cardSelection.id : null,
         txnDescription,
-        txnNeedsDebtAccount ? txnDebtAccountId : null
+        cardSelection?.kind === "debt" ? cardSelection.id : txnNeedsDebtAccount ? txnDebtAccountId : null
       );
 
       const payload: any = {
@@ -1405,18 +1476,23 @@ export default function BudgetPage() {
         amount: amt,
         category_id: txnCategoryId,
         is_pending: false,
-        credit_card_id: txnNeedsCard ? txnCardId : null,
-        debt_account_id: txnNeedsDebtAccount ? txnDebtAccountId : null,
+        credit_card_id: cardSelection?.kind === "card" ? cardSelection.id : null,
+        debt_account_id:
+          txnNeedsDebtAccount ? txnDebtAccountId : cardSelection?.kind === "debt" ? cardSelection.id : null,
       };
 
       const { error } = await supabase.from("transactions").insert([payload]);
       if (error) throw error;
 
-      if (txnNeedsDebtAccount && txnDebtAccountId) {
+      if (txnDebtAccountId) {
         await adjustDebtBalance(txnDebtAccountId, -amt);
+      } else if (cardSelection?.kind === "debt") {
+        await adjustDebtBalance(cardSelection.id, -amt);
       }
 
       setTxnAmount("");
+      setTxnCardSelectId("");
+      setTxnDateError("");
       setTxnDebtAccountId("");
       setTxnDescription("");
       setMsg("Transaction saved.");
@@ -1429,19 +1505,27 @@ export default function BudgetPage() {
   function startEditTxn(t: Txn) {
     setEditTxnId(t.id);
     setEditTxnDate(t.date);
+    setEditTxnDateError("");
     setEditTxnAmount(String(t.amount));
     setEditTxnCategoryId(t.category_id ?? "");
-    setEditTxnCardId(t.credit_card_id ?? "");
     setEditTxnDebtAccountId(t.debt_account_id ?? "");
     setEditTxnDescription(t.name ?? "");
+    if (t.category_id && creditCardCategoryIds.includes(t.category_id)) {
+      if (t.credit_card_id) setEditTxnCardSelectId(`card:${t.credit_card_id}`);
+      else if (t.debt_account_id) setEditTxnCardSelectId(`debt:${t.debt_account_id}`);
+      else setEditTxnCardSelectId("");
+    } else {
+      setEditTxnCardSelectId("");
+    }
   }
 
   function cancelEditTxn() {
     setEditTxnId(null);
     setEditTxnDate("");
+    setEditTxnDateError("");
     setEditTxnAmount("");
     setEditTxnCategoryId("");
-    setEditTxnCardId("");
+    setEditTxnCardSelectId("");
     setEditTxnDebtAccountId("");
     setEditTxnDescription("");
   }
@@ -1479,18 +1563,21 @@ export default function BudgetPage() {
     try {
       if (!userId) return;
       const amt = Number(editTxnAmount);
-      if (!editTxnDate) throw new Error("Pick a date.");
+      const dateErr = validateDateInput(editTxnDate);
+      setEditTxnDateError(dateErr);
+      if (dateErr) throw new Error(dateErr);
       if (!Number.isFinite(amt)) throw new Error("Enter a valid amount.");
       if (!editTxnCategoryId) throw new Error("Pick a category.");
-      if (editTxnNeedsCard && !editTxnCardId) throw new Error("Select a credit card.");
+      const cardSelection = editTxnNeedsCard ? parseCardSelectId(editTxnCardSelectId) : null;
+      if (editTxnNeedsCard && !cardSelection) throw new Error("Select a credit card.");
       if (editTxnNeedsDebtAccount && !editTxnDebtAccountId)
         throw new Error("Select a debt account.");
 
       const newName = fallbackTxnName(
         editTxnCategoryId,
-        editTxnNeedsCard ? editTxnCardId : null,
+        cardSelection?.kind === "card" ? cardSelection.id : null,
         editTxnDescription,
-        editTxnNeedsDebtAccount ? editTxnDebtAccountId : null
+        cardSelection?.kind === "debt" ? cardSelection.id : editTxnNeedsDebtAccount ? editTxnDebtAccountId : null
       );
 
       const payload: any = {
@@ -1498,8 +1585,13 @@ export default function BudgetPage() {
         name: newName,
         amount: amt,
         category_id: editTxnCategoryId,
-        credit_card_id: editTxnNeedsCard ? editTxnCardId : null,
-        debt_account_id: editTxnNeedsDebtAccount ? editTxnDebtAccountId : null,
+        credit_card_id: cardSelection?.kind === "card" ? cardSelection.id : null,
+        debt_account_id:
+          editTxnNeedsDebtAccount
+            ? editTxnDebtAccountId
+            : cardSelection?.kind === "debt"
+            ? cardSelection.id
+            : null,
       };
 
       const oldRequiresCard =
@@ -1507,16 +1599,13 @@ export default function BudgetPage() {
       const newRequiresCard = editTxnNeedsCard;
 
       const oldCardId = t.credit_card_id ?? null;
-      const newCardId = editTxnNeedsCard ? editTxnCardId : null;
+      const newCardId = payload.credit_card_id ?? null;
 
-      const oldRequiresDebt =
-        !!t.category_id &&
-        !creditCardCategoryIds.includes(t.category_id) &&
-        categoryById.get(t.category_id)?.group_name === "debt";
-      const newRequiresDebt = editTxnNeedsDebtAccount;
+      const oldRequiresDebt = !!t.debt_account_id;
+      const newRequiresDebt = !!payload.debt_account_id;
 
       const oldDebtId = t.debt_account_id ?? null;
-      const newDebtId = editTxnNeedsDebtAccount ? editTxnDebtAccountId : null;
+      const newDebtId = payload.debt_account_id ?? null;
 
       const { error } = await supabase
         .from("transactions")
@@ -1561,8 +1650,8 @@ export default function BudgetPage() {
                 name: newName,
                 amount: amt,
                 category_id: editTxnCategoryId,
-                credit_card_id: editTxnNeedsCard ? editTxnCardId : null,
-                debt_account_id: editTxnNeedsDebtAccount ? editTxnDebtAccountId : null,
+                credit_card_id: payload.credit_card_id,
+                debt_account_id: payload.debt_account_id,
               }
             : x
         )
@@ -1796,12 +1885,12 @@ export default function BudgetPage() {
   // - per-card credit card payments (bucketed from ANY "credit card*" debt category)
   // - other debt categories shown normally, excluding the "credit card*" categories to avoid double-counting
   const debtRows = [
-    ...cards.map((cc) => {
+    ...cardLikeAccounts.map((cc) => {
       const v = cardRow(cc.id);
       return {
         id: `CC::${cc.id}`,
         label: `Credit Card Payment - ${cc.name}`,
-        extra: `Current balance: $${cc.current_balance.toFixed(2)}`,
+        extra: `Current balance: ${formatMoney(cc.balance)}`,
         ...v,
       };
     }),
@@ -1815,7 +1904,9 @@ export default function BudgetPage() {
       return {
         id: key,
         label: d.name,
-        extra: `Balance: ${formatMoney(d.balance)} | Min ${
+        extra: `Type: ${debtTypeLabel(d.debt_type)} | Balance: ${formatMoney(
+          d.balance
+        )} | Min ${
           d.min_payment === null ? "--" : formatMoney(d.min_payment)
         } | Paid ${formatMoney(actual)} | Remaining ${formatMoney(remaining)} | APR ${
           d.apr === null ? "--" : `${d.apr}%`
@@ -2074,14 +2165,12 @@ export default function BudgetPage() {
 
               <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
                 <div className="text-sm text-zinc-700 dark:text-zinc-300">Debt insight</div>
-                <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-                  Total card balance:{" "}
-                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                    {formatMoney(
-                      cards.reduce((s, c) => s + Number(c.current_balance), 0)
-                    )}
-                  </span>
-                </div>
+                      <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
+                        Total card balance:{" "}
+                        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                          {formatMoney(cardLikeAccounts.reduce((s, c) => s + c.balance, 0))}
+                        </span>
+                      </div>
                 <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
                   Payments this month: {formatMoney(debtPaymentsThisMonth)}
                 </div>
@@ -2181,14 +2270,12 @@ export default function BudgetPage() {
                     <div className="text-sm text-zinc-700 dark:text-zinc-300">
                       Debt insight
                     </div>
-                    <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-                      Total card balance:{" "}
-                      <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                        {formatMoney(
-                          cards.reduce((s, c) => s + Number(c.current_balance), 0)
-                        )}
-                      </span>
-                    </div>
+                      <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
+                        Total card balance:{" "}
+                        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                          {formatMoney(cardLikeAccounts.reduce((s, c) => s + c.balance, 0))}
+                        </span>
+                      </div>
                     <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
                       Payments this month: {formatMoney(debtPaymentsThisMonth)}
                     </div>
@@ -2640,12 +2727,28 @@ export default function BudgetPage() {
                           >
                             <td className="p-3">
                               {isEditing ? (
-                                <input
-                                  type="date"
-                                  value={editTxnDate}
-                                  onChange={(e) => setEditTxnDate(e.target.value)}
-                                  className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                                />
+                                <div className="grid gap-1">
+                                  <input
+                                    type="date"
+                                    value={editTxnDate}
+                                    min="2000-01-01"
+                                    max="2100-12-31"
+                                    onChange={(e) => {
+                                      if (e.target.value.length > 10) return;
+                                      setEditTxnDate(e.target.value);
+                                      if (editTxnDateError) setEditTxnDateError("");
+                                    }}
+                                    onBlur={() =>
+                                      setEditTxnDateError(validateDateInput(editTxnDate))
+                                    }
+                                    className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                                  />
+                                  {editTxnDateError && (
+                                    <div className="text-xs text-red-600 dark:text-red-400">
+                                      {editTxnDateError}
+                                    </div>
+                                  )}
+                                </div>
                               ) : (
                                 t.date
                               )}
@@ -2735,13 +2838,13 @@ export default function BudgetPage() {
                               {isEditing ? (
                                 editTxnNeedsCard ? (
                                   <select
-                                    value={editTxnCardId}
-                                    onChange={(e) => setEditTxnCardId(e.target.value)}
+                                    value={editTxnCardSelectId}
+                                    onChange={(e) => setEditTxnCardSelectId(e.target.value)}
                                     className="min-w-[180px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                                   >
                                     <option value="">Select a card</option>
-                                    {cards.map((cc) => (
-                                      <option key={cc.id} value={cc.id}>
+                                    {cardLikeAccounts.map((cc) => (
+                                      <option key={`${cc.kind}:${cc.id}`} value={`${cc.kind}:${cc.id}`}>
                                         {cc.name}
                                       </option>
                                     ))}
@@ -2753,11 +2856,13 @@ export default function BudgetPage() {
                                     className="min-w-[180px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                                   >
                                     <option value="">Select a debt account</option>
-                                    {debtAccounts.map((d) => (
-                                      <option key={d.id} value={d.id}>
-                                        {d.name}
-                                      </option>
-                                    ))}
+                                    {debtAccounts
+                                      .filter((d) => d.debt_type !== "credit_card")
+                                      .map((d) => (
+                                        <option key={d.id} value={d.id}>
+                                          {d.name}
+                                        </option>
+                                      ))}
                                   </select>
                                 ) : (
                                   <span className="text-zinc-600 dark:text-zinc-400">--</span>
@@ -2834,9 +2939,21 @@ export default function BudgetPage() {
                   <input
                     type="date"
                     value={txnDate}
-                    onChange={(e) => setTxnDate(e.target.value)}
+                    min="2000-01-01"
+                    max="2100-12-31"
+                    onChange={(e) => {
+                      if (e.target.value.length > 10) return;
+                      setTxnDate(e.target.value);
+                      if (txnDateError) setTxnDateError("");
+                    }}
+                    onBlur={() => setTxnDateError(validateDateInput(txnDate))}
                     className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                   />
+                  {txnDateError && (
+                    <div className="text-xs text-red-600 dark:text-red-400">
+                      {txnDateError}
+                    </div>
+                  )}
                 </label>
 
                 <label className="grid gap-1">
@@ -2901,13 +3018,13 @@ export default function BudgetPage() {
                   <label className="grid gap-1">
                     <span className="text-sm text-zinc-700 dark:text-zinc-300">Card</span>
                     <select
-                      value={txnCardId}
-                      onChange={(e) => setTxnCardId(e.target.value)}
+                      value={txnCardSelectId}
+                      onChange={(e) => setTxnCardSelectId(e.target.value)}
                       className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                     >
                       <option value="">Select a card</option>
-                      {cards.map((cc) => (
-                        <option key={cc.id} value={cc.id}>
+                      {cardLikeAccounts.map((cc) => (
+                        <option key={`${cc.kind}:${cc.id}`} value={`${cc.kind}:${cc.id}`}>
                           {cc.name}
                         </option>
                       ))}
@@ -2924,11 +3041,13 @@ export default function BudgetPage() {
                       className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                     >
                       <option value="">Select a debt account</option>
-                      {debtAccounts.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
-                      ))}
+                      {debtAccounts
+                        .filter((d) => d.debt_type !== "credit_card")
+                        .map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
                     </select>
                   </label>
                 )}
@@ -3040,12 +3159,28 @@ export default function BudgetPage() {
                           >
                             <td className="p-2">
                               {isEditing ? (
-                                <input
-                                  type="date"
-                                  value={editTxnDate}
-                                  onChange={(e) => setEditTxnDate(e.target.value)}
-                                  className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                                />
+                                <div className="grid gap-1">
+                                  <input
+                                    type="date"
+                                    value={editTxnDate}
+                                    min="2000-01-01"
+                                    max="2100-12-31"
+                                    onChange={(e) => {
+                                      if (e.target.value.length > 10) return;
+                                      setEditTxnDate(e.target.value);
+                                      if (editTxnDateError) setEditTxnDateError("");
+                                    }}
+                                    onBlur={() =>
+                                      setEditTxnDateError(validateDateInput(editTxnDate))
+                                    }
+                                    className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                                  />
+                                  {editTxnDateError && (
+                                    <div className="text-xs text-red-600 dark:text-red-400">
+                                      {editTxnDateError}
+                                    </div>
+                                  )}
+                                </div>
                               ) : (
                                 t.date
                               )}
@@ -3135,13 +3270,13 @@ export default function BudgetPage() {
                               {isEditing ? (
                                 editTxnNeedsCard ? (
                                   <select
-                                    value={editTxnCardId}
-                                    onChange={(e) => setEditTxnCardId(e.target.value)}
+                                    value={editTxnCardSelectId}
+                                    onChange={(e) => setEditTxnCardSelectId(e.target.value)}
                                     className="min-w-[180px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                                   >
                                     <option value="">Select a card</option>
-                                    {cards.map((cc) => (
-                                      <option key={cc.id} value={cc.id}>
+                                    {cardLikeAccounts.map((cc) => (
+                                      <option key={`${cc.kind}:${cc.id}`} value={`${cc.kind}:${cc.id}`}>
                                         {cc.name}
                                       </option>
                                     ))}
@@ -3153,11 +3288,13 @@ export default function BudgetPage() {
                                     className="min-w-[180px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                                   >
                                     <option value="">Select a debt account</option>
-                                    {debtAccounts.map((d) => (
-                                      <option key={d.id} value={d.id}>
-                                        {d.name}
-                                      </option>
-                                    ))}
+                                    {debtAccounts
+                                      .filter((d) => d.debt_type !== "credit_card")
+                                      .map((d) => (
+                                        <option key={d.id} value={d.id}>
+                                          {d.name}
+                                        </option>
+                                      ))}
                                   </select>
                                 ) : (
                                   <span className="text-zinc-600 dark:text-zinc-400">--</span>
@@ -3224,6 +3361,23 @@ export default function BudgetPage() {
               <h2 className="text-lg font-semibold">Debt accounts</h2>
               <div className="mt-3 grid gap-3">
                 <label className="grid gap-1">
+                  <span className="text-sm text-zinc-700 dark:text-zinc-300">Type</span>
+                  <select
+                    value={debtType}
+                    onChange={(e) =>
+                      setDebtType(e.target.value as DebtAccount["debt_type"])
+                    }
+                    className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                  >
+                    <option value="credit_card">Credit card</option>
+                    <option value="loan">Loan</option>
+                    <option value="mortgage">Mortgage</option>
+                    <option value="student_loan">Student loan</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+
+                <label className="grid gap-1">
                   <span className="text-sm text-zinc-700 dark:text-zinc-300">Name</span>
                   <input
                     value={debtName}
@@ -3271,9 +3425,25 @@ export default function BudgetPage() {
                   <input
                     type="date"
                     value={debtDueDate}
-                    onChange={(e) => setDebtDueDate(e.target.value)}
+                    min="2000-01-01"
+                    max="2100-12-31"
+                    onChange={(e) => {
+                      if (e.target.value.length > 10) return;
+                      setDebtDueDate(e.target.value);
+                      if (debtDueDateError) setDebtDueDateError("");
+                    }}
+                    onBlur={() =>
+                      setDebtDueDateError(
+                        validateDateInput(debtDueDate, { allowEmpty: true })
+                      )
+                    }
                     className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                   />
+                  {debtDueDateError && (
+                    <div className="text-xs text-red-600 dark:text-red-400">
+                      {debtDueDateError}
+                    </div>
+                  )}
                 </label>
 
                 <button
@@ -3289,6 +3459,9 @@ export default function BudgetPage() {
                       if (!Number.isFinite(bal)) throw new Error("Balance must be a number.");
                       if (apr !== null && !Number.isFinite(apr)) throw new Error("APR must be a number.");
                       if (minPay !== null && !Number.isFinite(minPay)) throw new Error("Min payment must be a number.");
+                      const dueErr = validateDateInput(debtDueDate, { allowEmpty: true });
+                      setDebtDueDateError(dueErr);
+                      if (dueErr) throw new Error(dueErr);
 
                       const { data, error } = await supabase
                         .from("debt_accounts")
@@ -3296,13 +3469,14 @@ export default function BudgetPage() {
                           {
                             user_id: userId,
                             name,
+                            debt_type: debtType,
                             balance: bal,
                             apr,
                             min_payment: minPay,
                             due_date: debtDueDate || null,
                           },
                         ])
-                        .select("id, name, balance, apr, min_payment, due_date")
+                        .select("id, name, debt_type, balance, apr, min_payment, due_date")
                         .single();
                       if (error) throw error;
 
@@ -3311,6 +3485,8 @@ export default function BudgetPage() {
                         {
                           id: data.id,
                           name: data.name,
+                          debt_type:
+                            (data.debt_type ?? "credit_card") as DebtAccount["debt_type"],
                           balance: Number(data.balance),
                           apr: data.apr === null ? null : Number(data.apr),
                           min_payment: data.min_payment === null ? null : Number(data.min_payment),
@@ -3318,10 +3494,12 @@ export default function BudgetPage() {
                         },
                       ]);
                       setDebtName("");
+                      setDebtType("credit_card");
                       setDebtBalance("");
                       setDebtApr("");
                       setDebtMinPayment("");
                       setDebtDueDate("");
+                      setDebtDueDateError("");
                       setMsg("Debt account added.");
                     } catch (e: any) {
                       setMsg(e?.message ?? String(e));
@@ -3348,7 +3526,7 @@ export default function BudgetPage() {
                         {d.name}
                       </div>
                       <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                        Balance {formatMoney(d.balance)} | APR{" "}
+                        Type {debtTypeLabel(d.debt_type)} | Balance {formatMoney(d.balance)} | APR{" "}
                         {d.apr === null ? "--" : `${d.apr}%`} | Min{" "}
                         {d.min_payment === null ? "--" : formatMoney(d.min_payment)} | Due{" "}
                         {d.due_date ?? "--"}
@@ -3409,3 +3587,9 @@ export default function BudgetPage() {
     </AuthGate>
   );
 }
+  function parseCardSelectId(value: string) {
+    if (!value) return null;
+    if (value.startsWith("card:")) return { kind: "card" as const, id: value.slice(5) };
+    if (value.startsWith("debt:")) return { kind: "debt" as const, id: value.slice(5) };
+    return null;
+  }
