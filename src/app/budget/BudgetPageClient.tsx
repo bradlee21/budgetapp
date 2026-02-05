@@ -161,7 +161,7 @@ function BudgetTable({
           rows.map((r) => (
             <tr
               key={r.id}
-              className="border-t border-zinc-200 dark:border-zinc-800"
+              className="group border-t border-zinc-200 dark:border-zinc-800"
               draggable={!!r.orderableCategoryId}
               onDragStart={
                 r.orderableCategoryId
@@ -220,7 +220,7 @@ function BudgetTable({
                         title="Drag to reorder"
                         aria-label="Drag to reorder"
                         onMouseDown={(e) => e.stopPropagation()}
-                        className="cursor-grab rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-100 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                        className="cursor-grab rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 opacity-0 transition-opacity hover:bg-zinc-100 group-hover:opacity-100 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
                       >
                         ::
                       </button>
@@ -258,7 +258,7 @@ function BudgetTable({
                 ) : (
                   <button
                     onClick={() => onStartEditPlanned(r.id, r.planned)}
-                    className="rounded-md px-2 py-1 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                    className="rounded-md px-2 py-1 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
                     title="Edit planned total"
                   >
                     {formatMoney(r.planned)}
@@ -310,6 +310,16 @@ export default function BudgetPage() {
   const [planRows, setPlanRows] = useState<PlanItem[]>([]);
   const [txns, setTxns] = useState<Txn[]>([]);
   const [budgetMonth, setBudgetMonth] = useState<BudgetMonth | null>(null);
+  const [archivedCategories, setArchivedCategories] = useState<Category[]>([]);
+  const archivedSorted = useMemo(() => {
+    return archivedCategories
+      .slice()
+      .sort(
+        (a, b) =>
+          a.group_name.localeCompare(b.group_name) ||
+          a.name.localeCompare(b.name)
+      );
+  }, [archivedCategories]);
   const [availableStart, setAvailableStart] = useState("");
   const [availableDirty, setAvailableDirty] = useState(false);
   const [savingAvailable, setSavingAvailable] = useState(false);
@@ -338,6 +348,10 @@ export default function BudgetPage() {
   const [editTxnCardId, setEditTxnCardId] = useState("");
   const [editTxnDebtAccountId, setEditTxnDebtAccountId] = useState("");
   const [editTxnDescription, setEditTxnDescription] = useState("");
+  const [txnFilterGroup, setTxnFilterGroup] = useState<
+    "all" | "income" | "giving" | "savings" | "expense" | "debt"
+  >("all");
+  const [txnSearch, setTxnSearch] = useState("");
 
   const [debtName, setDebtName] = useState("");
   const [debtBalance, setDebtBalance] = useState("");
@@ -560,6 +574,15 @@ export default function BudgetPage() {
         nextCats = await seedDefaultCategories(u.user.id);
       }
       setCategories(nextCats);
+
+      const { data: archived, error: archErr } = await supabase
+        .from("categories")
+        .select("id, group_name, name, parent_id, sort_order, is_archived")
+        .eq("is_archived", true)
+        .order("group_name", { ascending: true })
+        .order("name", { ascending: true });
+      if (archErr) throw archErr;
+      setArchivedCategories((archived ?? []) as Category[]);
 
       const { data: cc, error: ccErr } = await supabase
         .from("credit_cards")
@@ -817,11 +840,67 @@ export default function BudgetPage() {
   const plannedNet = plannedIncome - plannedOut;
   const actualNet = actualIncome - actualOut;
 
+  const debtPaymentsThisMonth = useMemo(() => {
+    return txns
+      .filter((t) => {
+        const cat = t.category_id ? categoryById.get(t.category_id) : null;
+        return cat?.group_name === "debt";
+      })
+      .reduce((s, t) => s + t.amount, 0);
+  }, [txns, categoryById]);
+
+  const filteredTxns = useMemo(() => {
+    const q = txnSearch.trim().toLowerCase();
+    return txns.filter((t) => {
+      if (txnFilterGroup !== "all") {
+        const cat = t.category_id ? categoryById.get(t.category_id) : null;
+        if (!cat || cat.group_name !== txnFilterGroup) return false;
+      }
+      if (!q) return true;
+      const cat = t.category_id ? categoryById.get(t.category_id) : null;
+      const hay = [
+        t.name ?? "",
+        cat?.name ?? "",
+        cat?.group_name ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [txns, txnFilterGroup, txnSearch, categoryById]);
+
+  const filteredTxnTotal = useMemo(() => {
+    return filteredTxns.reduce((s, t) => s + t.amount, 0);
+  }, [filteredTxns]);
+
   const DEFAULT_CATEGORY_NAMES: Record<Category["group_name"], string[]> = {
     income: ["Primary Income", "Other Income"],
     giving: ["Tithe", "Charity"],
-    savings: ["Savings"],
-    expense: ["Housing", "Transportation", "Food", "Lifestyle", "Health", "Savings"],
+    savings: ["Emergency Fund", "Sinking Fund", "Long-Term Savings"],
+    expense: [
+      "Housing",
+      "Transportation",
+      "Food",
+      "Lifestyle",
+      "Health",
+      "Personal",
+      "Insurance",
+      "Rent/Mortgage",
+      "Utilities",
+      "Internet",
+      "Gas",
+      "Maintenance",
+      "Groceries",
+      "Restaurants",
+      "Entertainment",
+      "Subscriptions",
+      "Medical",
+      "Pharmacy",
+      "Clothing",
+      "Personal Care",
+      "Auto",
+      "Home/Renters",
+    ],
     debt: ["Credit Card", "Debt Payment"],
     misc: ["Misc"],
   };
@@ -1061,6 +1140,32 @@ export default function BudgetPage() {
     }
   }
 
+  async function restoreCategory(categoryId: string) {
+    setMsg("");
+    try {
+      const { error } = await supabase
+        .from("categories")
+        .update({ is_archived: false })
+        .eq("id", categoryId);
+      if (error) throw error;
+
+      const restored = archivedCategories.find((c) => c.id === categoryId);
+      if (restored) {
+        setArchivedCategories((prev) => prev.filter((c) => c.id !== categoryId));
+        setCategories((prev) =>
+          [...prev, { ...restored, is_archived: false }].sort((a, b) => {
+            if (a.group_name !== b.group_name) return a.group_name.localeCompare(b.group_name);
+            if ((a.parent_id ?? "") !== (b.parent_id ?? ""))
+              return (a.parent_id ?? "").localeCompare(b.parent_id ?? "");
+            return a.sort_order - b.sort_order || a.name.localeCompare(b.name);
+          })
+        );
+      }
+    } catch (e: any) {
+      setMsg(e?.message ?? String(e));
+    }
+  }
+
   function startEditPlanned(rowId: string, planned: number) {
     setEditPlannedKey(rowId);
     setEditPlannedAmount(String(planned));
@@ -1202,7 +1307,8 @@ export default function BudgetPage() {
     const next = targetSiblings.slice();
     if (inSameParent && fromIndex !== -1) {
       const [moved] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, moved);
+      const adjustedIndex = fromIndex < toIndex ? Math.max(0, toIndex - 1) : toIndex;
+      next.splice(adjustedIndex, 0, moved);
     } else {
       next.splice(toIndex, 0, { ...dragged, parent_id: targetParentId });
     }
@@ -1707,11 +1813,11 @@ export default function BudgetPage() {
       return {
         id: key,
         label: d.name,
-        extra: `Balance: ${formatMoney(d.balance)} • APR ${
-          d.apr === null ? "--" : `${d.apr}%`
-        } • Min ${
+        extra: `Balance: ${formatMoney(d.balance)} | Min ${
           d.min_payment === null ? "--" : formatMoney(d.min_payment)
-        } • Due ${d.due_date ?? "--"}`,
+        } | Paid ${formatMoney(actual)} | Remaining ${formatMoney(remaining)} | APR ${
+          d.apr === null ? "--" : `${d.apr}%`
+        } | Due ${d.due_date ?? "--"}`,
         planned,
         actual,
         remaining,
@@ -1957,12 +2063,7 @@ export default function BudgetPage() {
                   </span>
                 </div>
                 <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                  Payments this month:{" "}
-                  {formatMoney(
-                    txns
-                      .filter((t) => t.category_id && creditCardCategoryIds.includes(t.category_id))
-                      .reduce((s, t) => s + t.amount, 0)
-                  )}
+                  Payments this month: {formatMoney(debtPaymentsThisMonth)}
                 </div>
               </div>
             </div>
@@ -2069,12 +2170,7 @@ export default function BudgetPage() {
                       </span>
                     </div>
                     <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                      Payments this month:{" "}
-                      {formatMoney(
-                        txns
-                          .filter((t) => t.category_id && creditCardCategoryIds.includes(t.category_id))
-                          .reduce((s, t) => s + t.amount, 0)
-                      )}
+                      Payments this month: {formatMoney(debtPaymentsThisMonth)}
                     </div>
                   </div>
 
@@ -2083,10 +2179,10 @@ export default function BudgetPage() {
                       Install app
                     </div>
                     <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
-                      iOS: Safari → Share → Add to Home Screen.
+                      iOS: Safari -&gt; Share -&gt; Add to Home Screen.
                     </div>
                     <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                      Android/desktop: use your browser’s Install option.
+                      Android/desktop: use your browser's Install option.
                     </div>
                   </div>
                 </div>
@@ -2282,12 +2378,17 @@ export default function BudgetPage() {
                   <div
                     key={group.id}
                     className="rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
-                    onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    const draggedId = e.dataTransfer.getData("text/plain");
-                    if (draggedId) setDragCategoryId(draggedId);
-                    onDropCategory(group.id, draggedId || null);
-                  }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const draggedId = e.dataTransfer.getData("text/plain");
+                      if (draggedId) setDragCategoryId(draggedId);
+                      onDropCategory(group.id, draggedId || null);
+                    }}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
@@ -2846,6 +2947,39 @@ export default function BudgetPage() {
 
             <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
               <h2 className="text-lg font-semibold">Transactions</h2>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                <span>{filteredTxns.length} items</span>
+                <span>|</span>
+                <span>Total {formatMoney(filteredTxnTotal)}</span>
+              </div>
+              <div className="mt-3 grid gap-2">
+                <label className="grid gap-1">
+                  <span className="text-xs text-zinc-600 dark:text-zinc-400">Filter</span>
+                  <select
+                    value={txnFilterGroup}
+                    onChange={(e) =>
+                      setTxnFilterGroup(e.target.value as typeof txnFilterGroup)
+                    }
+                    className="rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                  >
+                    <option value="all">All</option>
+                    <option value="income">Income</option>
+                    <option value="giving">Giving</option>
+                    <option value="savings">Savings</option>
+                    <option value="expense">Expenses</option>
+                    <option value="debt">Debt</option>
+                  </select>
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-xs text-zinc-600 dark:text-zinc-400">Search</span>
+                  <input
+                    value={txnSearch}
+                    onChange={(e) => setTxnSearch(e.target.value)}
+                    placeholder="Search transactions"
+                    className="rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                  />
+                </label>
+              </div>
               <div className="mt-3 max-h-[420px] overflow-y-auto">
                 <table className="w-full border-collapse text-sm">
                   <thead className="bg-zinc-100 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
@@ -2859,14 +2993,14 @@ export default function BudgetPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-                    {txns.length === 0 ? (
+                    {filteredTxns.length === 0 ? (
                       <tr>
                         <td className="p-2 text-zinc-600 dark:text-zinc-300" colSpan={6}>
-                          No transactions this month.
+                          No transactions match your filters.
                         </td>
                       </tr>
                     ) : (
-                      txns.map((t) => {
+                      filteredTxns.map((t) => {
                         const cat = t.category_id ? categoryById.get(t.category_id) : null;
                         const card = t.credit_card_id ? cardById.get(t.credit_card_id) : null;
                         const debt = t.debt_account_id ? debtById.get(t.debt_account_id) : null;
@@ -3194,9 +3328,9 @@ export default function BudgetPage() {
                         {d.name}
                       </div>
                       <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                        Balance {formatMoney(d.balance)} • APR{" "}
-                        {d.apr === null ? "--" : `${d.apr}%`} • Min{" "}
-                        {d.min_payment === null ? "--" : formatMoney(d.min_payment)} • Due{" "}
+                        Balance {formatMoney(d.balance)} | APR{" "}
+                        {d.apr === null ? "--" : `${d.apr}%`} | Min{" "}
+                        {d.min_payment === null ? "--" : formatMoney(d.min_payment)} | Due{" "}
                         {d.due_date ?? "--"}
                       </div>
                       <div className="mt-2 flex items-center justify-end gap-2">
@@ -3213,13 +3347,39 @@ export default function BudgetPage() {
               </div>
             </div>
 
+            {archivedSorted.length > 0 && (
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="text-sm text-zinc-700 dark:text-zinc-300">
+                  Hidden categories
+                </div>
+                <div className="mt-2 space-y-2 text-xs text-zinc-600 dark:text-zinc-400">
+                  {archivedSorted.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between gap-2">
+                      <div>
+                        <span className="font-semibold">
+                          {c.group_name.charAt(0).toUpperCase() + c.group_name.slice(1)}
+                        </span>
+                        : {c.name}
+                      </div>
+                      <button
+                        onClick={() => restoreCategory(c.id)}
+                        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                      >
+                        Restore
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
               <div className="text-sm text-zinc-700 dark:text-zinc-300">Install app</div>
               <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
-                iOS: Safari → Share → Add to Home Screen.
+                iOS: Safari -&gt; Share -&gt; Add to Home Screen.
               </div>
               <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                Android/desktop: use your browser’s Install option.
+                Android/desktop: use your browser's Install option.
               </div>
             </div>
 
