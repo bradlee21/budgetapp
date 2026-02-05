@@ -583,7 +583,183 @@ export default function TransactionsPage() {
 
         {/* List */}
         <section className="mt-8">
-          <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <div className="space-y-3 sm:hidden">
+            {txns.length === 0 ? (
+              <div className="rounded-md border border-zinc-200 bg-white p-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
+                No transactions this month.
+              </div>
+            ) : (
+              txns.map((t) => {
+                const cat = t.category_id ? categoryById.get(t.category_id) : null;
+                const card = t.credit_card_id ? cardById.get(t.credit_card_id) : null;
+
+                const itemLabel =
+                  t.category_id
+                    ? fallbackTxnName(
+                        t.category_id,
+                        t.credit_card_id,
+                        t.name ?? null
+                      )
+                    : (t.name ?? "Transaction");
+
+                const isEditing = editId === t.id;
+
+                return (
+                  <div
+                    key={t.id}
+                    className="rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                        {isEditing ? (
+                          <input
+                            type="date"
+                            value={editDate}
+                            onChange={(e) => setEditDate(e.target.value)}
+                            className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                          />
+                        ) : (
+                          t.date
+                        )}
+                      </div>
+                      <div className="text-right text-sm font-semibold tabular-nums">
+                        {isEditing ? (
+                          <input
+                            value={editAmount}
+                            onChange={(e) => setEditAmount(e.target.value)}
+                            inputMode="decimal"
+                            className="w-[120px] rounded-md border border-zinc-300 bg-white p-2 text-right text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                          />
+                        ) : (
+                          formatMoney(t.amount)
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      {isEditing ? (
+                        <input
+                          value={editDescription}
+                          onChange={(e) => setEditDescription(e.target.value)}
+                          placeholder="Target, Venmo, notes..."
+                          className="w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                      ) : (
+                        <>
+                          <div className="font-medium">{itemLabel}</div>
+                          {!!t.name?.trim() && (
+                            <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                              {t.name}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    <div className="mt-3 grid gap-2 text-sm">
+                      <div>
+                        <div className="text-xs text-zinc-600 dark:text-zinc-400">Category</div>
+                        {isEditing ? (
+                          <select
+                            value={editCategoryId}
+                            onChange={(e) => setEditCategoryId(e.target.value)}
+                            className="mt-1 w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                          >
+                            <option value="">Select category</option>
+                            {(["income", "expense", "debt", "misc"] as const).map((group) => {
+                              const groupCats = categories.filter((c) => c.group_name === group);
+                              if (groupCats.length === 0) return null;
+                              return (
+                                <optgroup
+                                  key={group}
+                                  label={group.charAt(0).toUpperCase() + group.slice(1)}
+                                >
+                                  {groupCats.map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.name}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              );
+                            })}
+                          </select>
+                        ) : (
+                          <div className="mt-1 text-sm text-zinc-900 dark:text-zinc-100">
+                            {cat ? `${cat.group_name} - ${cat.name}` : "--"}
+                          </div>
+                        )}
+                      </div>
+
+                      {isEditing && editNeedsCard && (
+                        <div>
+                          <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                            Credit card
+                          </div>
+                          <select
+                            value={editCardId}
+                            onChange={(e) => setEditCardId(e.target.value)}
+                            className="mt-1 w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                          >
+                            <option value="">Select a card</option>
+                            {cards.map((cc) => (
+                              <option key={cc.id} value={cc.id}>
+                                {cc.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {!isEditing && (
+                        <div>
+                          <div className="text-xs text-zinc-600 dark:text-zinc-400">Card</div>
+                          <div className="mt-1 text-sm text-zinc-900 dark:text-zinc-100">
+                            {card?.name ?? "--"}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-end gap-2">
+                      {isEditing ? (
+                        <>
+                          <button
+                            onClick={() => saveEditTxn(t)}
+                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => startEdit(t)}
+                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => deleteTxn(t)}
+                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800 sm:block">
             <table className="w-full border-collapse text-sm">
               <thead className="bg-zinc-100 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
                 <tr>
