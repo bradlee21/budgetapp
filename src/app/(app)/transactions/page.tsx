@@ -584,7 +584,7 @@ export default function TransactionsPage() {
 
         {/* List */}
         <section className="mt-8">
-          <div className="space-y-3 sm:hidden">
+          <div className="space-y-3 md:hidden">
             {txns.length === 0 ? (
               <div className="rounded-md border border-zinc-200 bg-white p-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
                 No transactions this month.
@@ -760,7 +760,7 @@ export default function TransactionsPage() {
             )}
           </div>
 
-          <div className="hidden overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800 sm:block">
+          <div className="hidden overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800 md:block">
             <table className="w-full border-collapse text-sm">
               <thead className="bg-zinc-100 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
                 <tr>
