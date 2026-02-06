@@ -1784,6 +1784,10 @@ export default function BudgetPage() {
   function startGroupTouchDrag(e: TouchEvent, id?: string) {
     if (!id) return;
     if (e.touches.length !== 1) return;
+    const target = (e.target as HTMLElement | null)?.closest("[data-dnd-id]") as
+      | HTMLElement
+      | null;
+    if (target && target.dataset.dndId !== id) return;
     const touch = e.touches[0];
     groupTouchStartRef.current = { x: touch.clientX, y: touch.clientY };
     groupTouchIdRef.current = id;
