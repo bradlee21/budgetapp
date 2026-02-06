@@ -123,6 +123,7 @@ type BudgetRow = {
   indent?: number;
   orderableCategoryId?: string;
   deletableCategoryId?: string;
+  mobileDraggable?: boolean;
 };
 
 function Section({
@@ -344,7 +345,7 @@ function BudgetTable({
     touchDragTimerRef.current = window.setTimeout(() => {
       touchDragActiveRef.current = true;
       setTouchDraggingId(id);
-    }, 350);
+    }, 250);
   }
 
   function moveTouchDrag(e: TouchEvent) {
@@ -352,7 +353,7 @@ function BudgetTable({
     const touch = e.touches[0];
     const dx = touch.clientX - touchStartRef.current.x;
     const dy = touch.clientY - touchStartRef.current.y;
-    if (!touchDragActiveRef.current && Math.abs(dx) + Math.abs(dy) > 8) {
+    if (!touchDragActiveRef.current && Math.abs(dx) + Math.abs(dy) > 12) {
       clearTouchDragTimer();
       return;
     }
@@ -400,7 +401,10 @@ function BudgetTable({
               <div
                 data-dnd-id={r.orderableCategoryId ?? undefined}
                 className="rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950 sm:p-3"
-                onTouchStart={(e) => startTouchDrag(e, r.orderableCategoryId)}
+                onTouchStart={(e) => {
+                  if (r.mobileDraggable === false) return;
+                  startTouchDrag(e, r.orderableCategoryId);
+                }}
                 onTouchMove={moveTouchDrag}
                 onTouchEnd={endTouchDrag}
                 onTouchCancel={endTouchDrag}
@@ -1709,6 +1713,10 @@ export default function BudgetPage() {
         setMsg("Delete or move its children first (or archive it).");
         return;
       }
+      if (isDefaultCategory(cat) && cat.parent_id === null) {
+        setMsg("Default groups cannot be hidden or deleted.");
+        return;
+      }
       if (isDefaultCategory(cat)) {
         confirmActionRef.current = async () => {
           const { error } = await supabase
@@ -1806,7 +1814,7 @@ export default function BudgetPage() {
     groupTouchTimerRef.current = window.setTimeout(() => {
       groupTouchActiveRef.current = true;
       setGroupTouchDraggingId(id);
-    }, 350);
+    }, 250);
   }
 
   function moveGroupTouchDrag(e: TouchEvent) {
@@ -1814,7 +1822,7 @@ export default function BudgetPage() {
     const touch = e.touches[0];
     const dx = touch.clientX - groupTouchStartRef.current.x;
     const dy = touch.clientY - groupTouchStartRef.current.y;
-    if (!groupTouchActiveRef.current && Math.abs(dx) + Math.abs(dy) > 8) {
+    if (!groupTouchActiveRef.current && Math.abs(dx) + Math.abs(dy) > 12) {
       clearGroupTouchTimer();
       return;
     }
@@ -2518,6 +2526,9 @@ export default function BudgetPage() {
       .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
       .map((c) => {
         const v = rowForCategory(c.id);
+        const isDefault = isDefaultCategory(c);
+        const isTopLevel = c.parent_id === null;
+        const canDelete = !(isDefault && isTopLevel);
         return {
           id: `CAT::${c.id}`,
           label: c.name,
@@ -2527,7 +2538,8 @@ export default function BudgetPage() {
           editable: true,
           indent: 0,
           orderableCategoryId: c.id,
-          deletableCategoryId: c.id,
+          deletableCategoryId: canDelete ? c.id : undefined,
+          mobileDraggable: !(isDefault && isTopLevel),
         } as BudgetRow;
       });
   }
@@ -2540,6 +2552,7 @@ export default function BudgetPage() {
       .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
 
     const groups = parents.map((p) => {
+      const isDefaultParent = isDefaultCategory(p);
       const kids = childrenByParent.get(p.id) ?? [];
 
       const totals = kids.reduce(
@@ -2554,6 +2567,8 @@ export default function BudgetPage() {
       );
       const rows: BudgetRow[] = kids.map((k) => {
         const v = rowForCategory(k.id);
+        const isDefault = isDefaultCategory(k);
+        const canDelete = !(isDefault && k.parent_id === null);
         return {
           id: `CAT::${k.id}`,
           label: k.name,
@@ -2563,7 +2578,8 @@ export default function BudgetPage() {
           editable: true,
           indent: 0,
           orderableCategoryId: k.id,
-          deletableCategoryId: k.id,
+          deletableCategoryId: canDelete ? k.id : undefined,
+          mobileDraggable: true,
         };
       });
       return {
@@ -2571,6 +2587,8 @@ export default function BudgetPage() {
         label: p.name,
         totals,
         rows,
+        deletable: !isDefaultParent,
+        mobileDraggable: !isDefaultParent,
       };
     });
 
@@ -2578,6 +2596,9 @@ export default function BudgetPage() {
       .filter((p) => (childrenByParent.get(p.id) ?? []).length === 0)
       .map((p) => {
         const v = rowForCategory(p.id);
+        const isDefault = isDefaultCategory(p);
+        const isTopLevel = p.parent_id === null;
+        const canDelete = !(isDefault && isTopLevel);
         return {
           id: `CAT::${p.id}`,
           label: p.name,
@@ -2587,7 +2608,8 @@ export default function BudgetPage() {
           editable: true,
           indent: 0,
           orderableCategoryId: p.id,
-          deletableCategoryId: p.id,
+          deletableCategoryId: canDelete ? p.id : undefined,
+          mobileDraggable: !(isDefault && isTopLevel),
         } as BudgetRow;
       });
 
@@ -3137,15 +3159,21 @@ export default function BudgetPage() {
                 {expenseGrouped.groups.map((group) => (
                   <SwipeRow
                     key={group.id}
-                    enabled={!groupTouchDraggingId}
-                    onDelete={() => removeCategory(group.id)}
+                    enabled={!!group.deletable && !groupTouchDraggingId}
+                    onDelete={() => {
+                      if (!group.deletable) return;
+                      removeCategory(group.id);
+                    }}
                     deleteLabel="Delete group"
                   >
                     <div
                       data-dnd-id={group.id}
                       className="rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950 sm:p-3"
                       draggable
-                      onTouchStart={(e) => startGroupTouchDrag(e, group.id)}
+                      onTouchStart={(e) => {
+                        if (!group.mobileDraggable) return;
+                        startGroupTouchDrag(e, group.id);
+                      }}
                       onTouchMove={moveGroupTouchDrag}
                       onTouchEnd={endGroupTouchDrag}
                       onTouchCancel={endGroupTouchDrag}
@@ -3169,10 +3197,14 @@ export default function BudgetPage() {
                     >
                     <div
                       className="flex flex-wrap items-center justify-between gap-2 sm:gap-3"
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        removeCategory(group.id);
-                      }}
+                      onContextMenu={
+                        group.deletable
+                          ? (e) => {
+                              e.preventDefault();
+                              removeCategory(group.id);
+                            }
+                          : undefined
+                      }
                     >
                       <div className="flex items-center gap-2">
                         {editCategoryId === group.id ? (
