@@ -11,6 +11,11 @@ import {
 } from "@/lib/date";
 import { formatMoney } from "@/lib/format";
 import {
+  getNextStepMessage,
+  type NextStepTone,
+  type NextStepTrigger,
+} from "@/lib/nextstepCopy";
+import {
   useEffect,
   useMemo,
   useRef,
@@ -796,6 +801,9 @@ export default function BudgetPage() {
 
   const [showDebug, setShowDebug] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [nextStepOpen, setNextStepOpen] = useState(false);
+  const [nextStepTone, setNextStepTone] = useState<NextStepTone>("guided");
+  const [nextStepEncouragement, setNextStepEncouragement] = useState(true);
 
   const [userId, setUserId] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -836,6 +844,27 @@ export default function BudgetPage() {
     debt: "",
   });
   const [newChildName, setNewChildName] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const tone = localStorage.getItem("nextstep_tone");
+    if (tone === "facts" || tone === "guided" || tone === "coach") {
+      setNextStepTone(tone);
+    }
+    const encouragement = localStorage.getItem("nextstep_encouragement");
+    if (encouragement === "false") {
+      setNextStepEncouragement(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("nextstep_tone", nextStepTone);
+    localStorage.setItem(
+      "nextstep_encouragement",
+      nextStepEncouragement ? "true" : "false"
+    );
+  }, [nextStepTone, nextStepEncouragement]);
 
   const [txnDate, setTxnDate] = useState(toYMD(new Date()));
   const [txnAmount, setTxnAmount] = useState("");
@@ -2765,6 +2794,67 @@ export default function BudgetPage() {
   });
   const debtTotals = totalsForRows(debtRows);
 
+  const uncategorizedCount = useMemo(() => {
+    return txns.filter((t) => !t.category_id).length;
+  }, [txns]);
+
+  const overspentCategory = useMemo(() => {
+    const candidates: { label: string; remaining: number }[] = [];
+    const pushIfOverspent = (r: BudgetRow) => {
+      if (r.remaining < 0) {
+        candidates.push({ label: r.label, remaining: r.remaining });
+      }
+    };
+    givingRows.forEach(pushIfOverspent);
+    savingsRows.forEach(pushIfOverspent);
+    debtRows.forEach(pushIfOverspent);
+    expenseGrouped.groups.forEach((g) => g.rows.forEach(pushIfOverspent));
+    expenseGrouped.ungrouped?.forEach?.(pushIfOverspent);
+    if (!candidates.length) return null;
+    candidates.sort((a, b) => a.remaining - b.remaining);
+    return candidates[0];
+  }, [givingRows, savingsRows, debtRows, expenseGrouped]);
+
+  const debtMinMissingCount = useMemo(() => {
+    return debtAccounts.filter(
+      (d) => d.min_payment === null || Number(d.min_payment) <= 0
+    ).length;
+  }, [debtAccounts]);
+
+  const nextStepTrigger: NextStepTrigger = useMemo(() => {
+    if (debtMinMissingCount > 0) return "DEBT_MIN_MISSING";
+    if (leftToBudget < 0) return "LEFT_TO_BUDGET_NEGATIVE";
+    if (uncategorizedCount > 0) return "UNCATEGORIZED_TXNS";
+    if (overspentCategory) return "CATEGORY_OVERSPENT";
+    if (leftToBudget > 0) return "LEFT_TO_BUDGET_POSITIVE";
+    return null;
+  }, [debtMinMissingCount, leftToBudget, uncategorizedCount, overspentCategory]);
+
+  const nextStepMessage = useMemo(
+    () =>
+      getNextStepMessage(
+        nextStepTrigger,
+        nextStepTone,
+        {
+          leftToBudget,
+          uncategorizedCount,
+          overspentLabel: overspentCategory?.label,
+          overspentAmount: overspentCategory?.remaining,
+          debtMinMissingCount,
+        },
+        nextStepEncouragement
+      ),
+    [
+      nextStepTrigger,
+      nextStepTone,
+      leftToBudget,
+      uncategorizedCount,
+      overspentCategory,
+      debtMinMissingCount,
+      nextStepEncouragement,
+    ]
+  );
+
 
   async function signOutUser() {
     setMsg("");
@@ -2788,7 +2878,29 @@ export default function BudgetPage() {
             </span>
           </div>
 
-          <div className="relative z-50">
+          <div className="relative z-50 flex items-center gap-2">
+            <button
+              onClick={() => {
+                setNextStepOpen(true);
+                setHeaderMenuOpen(false);
+              }}
+              className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+              aria-label="Open NextStep settings"
+              title="NextStep settings"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                <path d="M4.93 6.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.93 19.07l1.41-1.41M16.66 6.34l1.41-1.41" />
+              </svg>
+            </button>
+
             <button
               onClick={() => setHeaderMenuOpen((v) => !v)}
               className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
@@ -2973,6 +3085,17 @@ export default function BudgetPage() {
             </div>
           </div>
         </div>
+
+        {nextStepMessage && (
+          <div className="mt-3 rounded-lg border border-zinc-200 bg-white p-3 text-sm text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              NextStep
+            </div>
+            <div className="mt-1 text-sm text-zinc-900 dark:text-zinc-100">
+              {nextStepMessage.body}
+            </div>
+          </div>
+        )}
 
         <div className="mt-6">
 
@@ -3729,6 +3852,82 @@ export default function BudgetPage() {
               </div>
             </section>
           </div>
+        {nextStepOpen && (
+          <div className="fixed inset-0 z-[70]">
+            <button
+              onClick={() => setNextStepOpen(false)}
+              className="absolute inset-0 bg-black/30"
+              aria-label="Close NextStep settings"
+            />
+            <div className="absolute bottom-0 left-0 right-0 rounded-t-2xl border border-zinc-200 bg-white p-4 shadow-xl dark:border-zinc-800 dark:bg-zinc-950 md:bottom-auto md:right-6 md:left-auto md:top-24 md:w-[360px] md:rounded-xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    NextStep
+                  </div>
+                  <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                    Settings
+                  </div>
+                </div>
+                <button
+                  onClick={() => setNextStepOpen(false)}
+                  className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="mt-4">
+                <div className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+                  Tone
+                </div>
+                <div className="mt-2 grid gap-2">
+                  {[
+                    { value: "facts", label: "Facts Only" },
+                    { value: "guided", label: "Guided" },
+                    { value: "coach", label: "Coach" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setNextStepTone(opt.value as NextStepTone)}
+                      className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm ${
+                        nextStepTone === opt.value
+                          ? "border-blue-300 bg-blue-50 text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100"
+                          : "border-zinc-300 bg-white text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                      }`}
+                    >
+                      <span>{opt.label}</span>
+                      {nextStepTone === opt.value && (
+                        <span className="text-xs font-semibold">Selected</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900/40">
+                <div>
+                  <div className="font-semibold text-zinc-900 dark:text-zinc-100">
+                    Encouragement
+                  </div>
+                  <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                    Add a light supportive line.
+                  </div>
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={nextStepEncouragement}
+                    onChange={(e) => setNextStepEncouragement(e.target.checked)}
+                    className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </label>
+              </div>
+
+              <div className="pb-[env(safe-area-inset-bottom)]" />
+            </div>
+          </div>
+        )}
       </main>
     </AuthGate>
   );
