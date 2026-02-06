@@ -386,15 +386,27 @@ function BudgetTable({
                         </div>
                       </div>
                     ) : r.orderableCategoryId ? (
-                      <button
-                        onClick={() =>
-                          onStartEditName(r.orderableCategoryId!, r.label)
-                        }
-                        className="rounded-md text-left text-sm font-medium text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
-                        title="Edit name"
-                      >
-                        {r.label}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() =>
+                            onStartEditName(r.orderableCategoryId!, r.label)
+                          }
+                          className="rounded-md text-left text-sm font-medium text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
+                          title="Edit name"
+                        >
+                          {r.label}
+                        </button>
+                        <button
+                          onClick={() =>
+                            onStartEditName(r.orderableCategoryId!, r.label)
+                          }
+                          className="rounded-md px-1.5 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800 sm:hidden"
+                          aria-label={`Edit ${r.label}`}
+                          title="Edit name"
+                        >
+                          Edit
+                        </button>
+                      </div>
                     ) : (
                       <div className="font-medium">{r.label}</div>
                     )}
@@ -425,7 +437,7 @@ function BudgetTable({
                 </div>
               </div>
 
-              <div className="mt-2 grid grid-cols-2 gap-2 text-sm tabular-nums text-zinc-900 dark:text-zinc-100 sm:mt-3">
+              <div className="mt-2 grid grid-cols-2 gap-2 border-t border-zinc-200 pt-2 text-sm tabular-nums text-zinc-900 dark:border-zinc-800 dark:text-zinc-100 sm:mt-3">
                 <div>
                   <div className="text-xs text-zinc-600 dark:text-zinc-400">Planned</div>
                   <div className="mt-1">
@@ -576,15 +588,27 @@ function BudgetTable({
                             </button>
                           </div>
                         ) : r.orderableCategoryId ? (
-                          <button
-                            onClick={() =>
-                              onStartEditName(r.orderableCategoryId!, r.label)
-                            }
-                            className="rounded-md text-left text-sm font-medium text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
-                            title="Edit name"
-                          >
-                            {r.label}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() =>
+                                onStartEditName(r.orderableCategoryId!, r.label)
+                              }
+                              className="rounded-md text-left text-sm font-medium text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
+                              title="Edit name"
+                            >
+                              {r.label}
+                            </button>
+                            <button
+                              onClick={() =>
+                                onStartEditName(r.orderableCategoryId!, r.label)
+                              }
+                              className="hidden rounded-md px-1.5 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-100 group-hover:inline-flex dark:text-zinc-300 dark:hover:bg-zinc-800 sm:hidden"
+                              aria-label={`Edit ${r.label}`}
+                              title="Edit name"
+                            >
+                              Edit
+                            </button>
+                          </div>
                         ) : (
                           r.label
                         )}
@@ -1699,7 +1723,7 @@ export default function BudgetPage() {
 
   function startEditPlanned(rowId: string, planned: number) {
     setEditPlannedKey(rowId);
-    setEditPlannedAmount(String(planned));
+    setEditPlannedAmount(planned === 0 ? "" : String(planned));
   }
 
   function cancelEditPlanned() {
@@ -3077,13 +3101,23 @@ export default function BudgetPage() {
                             </button>
                           </div>
                         ) : (
-                          <button
-                            onClick={() => startEditCategoryName(group.id, group.label)}
-                            className="rounded-md text-left text-sm font-semibold text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
-                            title="Edit group name"
-                          >
-                            {group.label}
-                          </button>
+                          <>
+                            <button
+                              onClick={() => startEditCategoryName(group.id, group.label)}
+                              className="rounded-md text-left text-sm font-semibold text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
+                              title="Edit group name"
+                            >
+                              {group.label}
+                            </button>
+                            <button
+                              onClick={() => startEditCategoryName(group.id, group.label)}
+                              className="rounded-md px-1.5 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800 sm:hidden"
+                              aria-label={`Edit ${group.label}`}
+                              title="Edit group name"
+                            >
+                              Edit
+                            </button>
+                          </>
                         )}
                       </div>
                       <div className="text-xs text-zinc-600 dark:text-zinc-400">

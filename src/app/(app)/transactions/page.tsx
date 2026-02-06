@@ -221,6 +221,8 @@ export default function TransactionsPage() {
   const [editDescription, setEditDescription] = useState("");
   const addFormRef = useRef<HTMLDivElement | null>(null);
   const addDateRef = useRef<HTMLInputElement | null>(null);
+  const amountRef = useRef<HTMLInputElement | null>(null);
+  const descriptionRef = useRef<HTMLInputElement | null>(null);
 
   const start = useMemo(() => {
     const d = addMonths(new Date(), monthOffset);
@@ -547,6 +549,9 @@ export default function TransactionsPage() {
       setDebtAccountId("");
       setMsg(needsCard ? "Payment saved." : "Transaction saved.");
       await loadAll();
+      setTimeout(() => {
+        amountRef.current?.focus();
+      }, 0);
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
     }
@@ -880,7 +885,15 @@ export default function TransactionsPage() {
               <span className="text-sm text-zinc-700 dark:text-zinc-300">Category</span>
               <select
                 value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setCategoryId(next);
+                  if (next) {
+                    setTimeout(() => {
+                      amountRef.current?.focus();
+                    }, 0);
+                  }
+                }}
                 className="w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 sm:min-w-[240px] dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
               >
                 <option value="">Select category</option>
@@ -952,8 +965,15 @@ export default function TransactionsPage() {
             <label className="grid w-full gap-1 sm:w-auto">
               <span className="text-sm text-zinc-700 dark:text-zinc-300">Amount</span>
               <input
+                ref={amountRef}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addTxn();
+                  }
+                }}
                 inputMode="decimal"
                 placeholder="85.25"
                 className="w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 sm:w-[140px] dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
@@ -966,8 +986,15 @@ export default function TransactionsPage() {
                 Description (optional)
               </span>
               <input
+                ref={descriptionRef}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addTxn();
+                  }
+                }}
                 placeholder="Target, Venmo, notes..."
                 className="w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 sm:min-w-[260px] dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
               />

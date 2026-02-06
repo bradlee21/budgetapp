@@ -614,7 +614,7 @@ export default function DebtAccountsPage() {
                     </div>
                   ) : (
                     <>
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={() => startEditDebt(d)}
                           className="rounded-md text-left text-sm font-semibold text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
@@ -624,6 +624,13 @@ export default function DebtAccountsPage() {
                         <span className="text-xs text-zinc-500 dark:text-zinc-400">
                           {debtTypeLabel(d.debt_type)}
                         </span>
+                        <button
+                          onClick={() => startEditDebt(d)}
+                          className="rounded-md px-1.5 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800 sm:hidden"
+                          aria-label={`Edit ${d.name}`}
+                        >
+                          Edit
+                        </button>
                       </div>
                       <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
                         Balance {formatMoney(d.balance)} | APR{" "}
@@ -649,14 +656,7 @@ export default function DebtAccountsPage() {
                           Cancel
                         </button>
                       </>
-                    ) : (
-                      <button
-                        onClick={() => startEditDebt(d)}
-                        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                      >
-                        Edit
-                      </button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </SwipeRow>
