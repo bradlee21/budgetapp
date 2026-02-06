@@ -8,8 +8,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 type Category = {
   id: string;
-  group_name: "income" | "expense" | "debt" | "misc";
+  group_name: "income" | "giving" | "savings" | "expense" | "debt" | "misc";
   name: string;
+  parent_id: string | null;
   sort_order: number;
   is_archived: boolean;
 };
@@ -20,6 +21,16 @@ type CreditCard = {
   current_balance: number;
 };
 
+type DebtAccount = {
+  id: string;
+  name: string;
+  debt_type: "credit_card" | "loan" | "mortgage" | "student_loan" | "other";
+  balance: number;
+  apr: number | null;
+  min_payment: number | null;
+  due_date: string | null;
+};
+
 type Txn = {
   id: string;
   date: string; // YYYY-MM-DD
@@ -27,6 +38,7 @@ type Txn = {
   amount: number;
   category_id: string | null;
   credit_card_id: string | null;
+  debt_account_id: string | null;
 };
 
 function SwipeRow({
@@ -119,19 +131,22 @@ export default function TransactionsPage() {
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [cards, setCards] = useState<CreditCard[]>([]);
+  const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>([]);
   const [txns, setTxns] = useState<Txn[]>([]);
 
   // form
   const [date, setDate] = useState(toYMD(new Date()));
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [cardId, setCardId] = useState("");
+  const [cardSelectId, setCardSelectId] = useState("");
+  const [debtAccountId, setDebtAccountId] = useState("");
   const [description, setDescription] = useState(""); // optional
   const [editId, setEditId] = useState<string | null>(null);
   const [editDate, setEditDate] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [editCategoryId, setEditCategoryId] = useState("");
-  const [editCardId, setEditCardId] = useState("");
+  const [editCardSelectId, setEditCardSelectId] = useState("");
+  const [editDebtAccountId, setEditDebtAccountId] = useState("");
   const [editDescription, setEditDescription] = useState("");
 
   const start = useMemo(() => {
@@ -161,32 +176,90 @@ export default function TransactionsPage() {
     return map;
   }, [cards]);
 
+  const debtById = useMemo(() => {
+    const map = new Map<string, DebtAccount>();
+    for (const d of debtAccounts) map.set(d.id, d);
+    return map;
+  }, [debtAccounts]);
+
+  const cardLikeAccounts = useMemo(() => {
+    const fromCards = cards.map((c) => ({
+      kind: "card" as const,
+      id: c.id,
+      name: c.name,
+    }));
+    const fromDebt = debtAccounts
+      .filter((d) => d.debt_type === "credit_card")
+      .map((d) => ({
+        kind: "debt" as const,
+        id: d.id,
+        name: d.name,
+      }));
+    return [...fromCards, ...fromDebt];
+  }, [cards, debtAccounts]);
+
   // Any DEBT category containing "credit card" will require selecting a card
   const creditCardCategoryIds = useMemo(() => {
+    const byId = new Map(categories.map((c) => [c.id, c]));
     return categories
-      .filter(
-        (c) =>
-          c.group_name === "debt" && c.name.toLowerCase().includes("credit card")
-      )
+      .filter((c) => {
+        if (c.group_name !== "debt") return false;
+        const name = c.name.toLowerCase();
+        if (name.includes("credit card")) return true;
+        if (c.parent_id) {
+          const parent = byId.get(c.parent_id);
+          return !!parent && parent.name.toLowerCase().includes("credit card");
+        }
+        return false;
+      })
       .map((c) => c.id);
   }, [categories]);
 
   const needsCard = categoryId !== "" && creditCardCategoryIds.includes(categoryId);
+  const needsDebtAccount = useMemo(() => {
+    if (!categoryId) return false;
+    if (creditCardCategoryIds.includes(categoryId)) return false;
+    const cat = categoryById.get(categoryId);
+    return cat?.group_name === "debt";
+  }, [categoryId, categoryById, creditCardCategoryIds]);
+
   const editNeedsCard =
     editCategoryId !== "" && creditCardCategoryIds.includes(editCategoryId);
+  const editNeedsDebtAccount = useMemo(() => {
+    if (!editCategoryId) return false;
+    if (creditCardCategoryIds.includes(editCategoryId)) return false;
+    const cat = categoryById.get(editCategoryId);
+    return cat?.group_name === "debt";
+  }, [editCategoryId, categoryById, creditCardCategoryIds]);
 
   useEffect(() => {
-    if (!needsCard) setCardId("");
+    if (!needsCard) setCardSelectId("");
   }, [needsCard]);
 
   useEffect(() => {
-    if (!editNeedsCard) setEditCardId("");
+    if (!editNeedsCard) setEditCardSelectId("");
   }, [editNeedsCard]);
+
+  useEffect(() => {
+    if (!needsDebtAccount) setDebtAccountId("");
+  }, [needsDebtAccount]);
+
+  useEffect(() => {
+    if (!editNeedsDebtAccount) setEditDebtAccountId("");
+  }, [editNeedsDebtAccount]);
+
+  function parseCardSelectId(value: string) {
+    if (!value) return null;
+    if (value.startsWith("card:")) return { kind: "card" as const, id: value.slice(5) };
+    if (value.startsWith("debt:")) return { kind: "debt" as const, id: value.slice(5) };
+    return null;
+  }
 
   function fallbackTxnName(
     catId: string,
     ccId: string | null,
-    typed: string | null
+    typed: string | null,
+    debtId?: string | null
   ) {
     const typedClean = (typed ?? "").trim();
     if (typedClean) return typedClean;
@@ -196,9 +269,16 @@ export default function TransactionsPage() {
 
     if (creditCardCategoryIds.includes(catId)) {
       const card = ccId ? cardById.get(ccId) : null;
-      const cardName = card?.name ?? "Credit Card";
+      const debtCard = !card && debtId ? debtById.get(debtId) : null;
+      const cardName = card?.name ?? debtCard?.name ?? "Credit Card";
       // Keep it human-readable
       return `Credit Card Payment - ${cardName}`;
+    }
+
+    if (cat?.group_name === "debt") {
+      const debt = debtId ? debtById.get(debtId) : null;
+      const debtName = debt?.name ?? "Debt";
+      return `Debt Payment - ${debtName}`;
     }
 
     return catName;
@@ -213,7 +293,7 @@ export default function TransactionsPage() {
 
       const { data: cats, error: catErr } = await supabase
         .from("categories")
-        .select("id, group_name, name, sort_order, is_archived")
+        .select("id, group_name, name, parent_id, sort_order, is_archived")
         .eq("is_archived", false)
         .order("group_name", { ascending: true })
         .order("sort_order", { ascending: true })
@@ -236,9 +316,26 @@ export default function TransactionsPage() {
         }))
       );
 
+      const { data: debts, error: debtErr } = await supabase
+        .from("debt_accounts")
+        .select("id, name, debt_type, balance, apr, min_payment, due_date")
+        .order("name", { ascending: true });
+      if (debtErr) throw debtErr;
+      setDebtAccounts(
+        (debts ?? []).map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          debt_type: (d.debt_type ?? "credit_card") as DebtAccount["debt_type"],
+          balance: Number(d.balance),
+          apr: d.apr === null ? null : Number(d.apr),
+          min_payment: d.min_payment === null ? null : Number(d.min_payment),
+          due_date: d.due_date ?? null,
+        }))
+      );
+
       const { data: rows, error: txErr } = await supabase
         .from("transactions")
-        .select("id, date, name, amount, category_id, credit_card_id")
+        .select("id, date, name, amount, category_id, credit_card_id, debt_account_id")
         .eq("user_id", u.user.id)
         .gte("date", start)
         .lt("date", end)
@@ -254,6 +351,7 @@ export default function TransactionsPage() {
           amount: Number(t.amount),
           category_id: t.category_id ?? null,
           credit_card_id: t.credit_card_id ?? null,
+          debt_account_id: t.debt_account_id ?? null,
         }))
       );
     } catch (e: any) {
@@ -278,7 +376,9 @@ export default function TransactionsPage() {
       if (!date) throw new Error("Pick a date.");
       if (!Number.isFinite(amt)) throw new Error("Enter a valid amount.");
       if (!categoryId) throw new Error("Pick a category.");
-      if (needsCard && !cardId) throw new Error("Select a credit card.");
+      const cardSelection = needsCard ? parseCardSelectId(cardSelectId) : null;
+      if (needsCard && !cardSelection) throw new Error("Select a credit card.");
+      if (needsDebtAccount && !debtAccountId) throw new Error("Select a debt account.");
 
       // Payments are always positive amounts in this app
       if (amt <= 0) throw new Error("Amount must be greater than 0.");
@@ -287,8 +387,13 @@ export default function TransactionsPage() {
       // So we always send a name -- but we generate it if you leave description blank.
       const computedName = fallbackTxnName(
         categoryId,
-        needsCard ? cardId : null,
-        description
+        cardSelection?.kind === "card" ? cardSelection.id : null,
+        description,
+        needsDebtAccount
+          ? debtAccountId
+          : cardSelection?.kind === "debt"
+          ? cardSelection.id
+          : null
       );
 
       const payload: any = {
@@ -299,14 +404,29 @@ export default function TransactionsPage() {
         amount: amt,
         category_id: categoryId,
         is_pending: false,
-        credit_card_id: needsCard ? cardId : null,
+        credit_card_id: cardSelection?.kind === "card" ? cardSelection.id : null,
+        debt_account_id: needsDebtAccount
+          ? debtAccountId
+          : cardSelection?.kind === "debt"
+          ? cardSelection.id
+          : null,
       };
 
       const { error } = await supabase.from("transactions").insert([payload]);
       if (error) throw error;
 
+      if (cardSelection?.kind === "card") {
+        await adjustCardBalance(cardSelection.id, -amt);
+      } else if (cardSelection?.kind === "debt") {
+        await adjustDebtBalance(cardSelection.id, -amt);
+      } else if (needsDebtAccount) {
+        await adjustDebtBalance(debtAccountId, -amt);
+      }
+
       setAmount("");
       setDescription("");
+      setCardSelectId("");
+      setDebtAccountId("");
       setMsg(needsCard ? "Payment saved." : "Transaction saved.");
       await loadAll();
     } catch (e: any) {
@@ -319,7 +439,14 @@ export default function TransactionsPage() {
     setEditDate(t.date);
     setEditAmount(String(t.amount));
     setEditCategoryId(t.category_id ?? "");
-    setEditCardId(t.credit_card_id ?? "");
+    setEditCardSelectId(
+      t.credit_card_id
+        ? `card:${t.credit_card_id}`
+        : t.debt_account_id
+        ? `debt:${t.debt_account_id}`
+        : ""
+    );
+    setEditDebtAccountId(t.debt_account_id ?? "");
     setEditDescription(t.name ?? "");
   }
 
@@ -328,7 +455,8 @@ export default function TransactionsPage() {
     setEditDate("");
     setEditAmount("");
     setEditCategoryId("");
-    setEditCardId("");
+    setEditCardSelectId("");
+    setEditDebtAccountId("");
     setEditDescription("");
   }
 
@@ -346,6 +474,20 @@ export default function TransactionsPage() {
     );
   }
 
+  async function adjustDebtBalance(debtId: string, delta: number) {
+    const debt = debtAccounts.find((d) => d.id === debtId);
+    if (!debt) throw new Error("Debt account not found.");
+    const next = debt.balance + delta;
+    const { error } = await supabase
+      .from("debt_accounts")
+      .update({ balance: next })
+      .eq("id", debtId);
+    if (error) throw error;
+    setDebtAccounts((prev) =>
+      prev.map((d) => (d.id === debtId ? { ...d, balance: next } : d))
+    );
+  }
+
   async function saveEdit(t: Txn) {
     setMsg("");
     try {
@@ -354,12 +496,20 @@ export default function TransactionsPage() {
       if (!Number.isFinite(amt)) throw new Error("Enter a valid amount.");
       if (amt <= 0) throw new Error("Amount must be greater than 0.");
       if (!editCategoryId) throw new Error("Pick a category.");
-      if (editNeedsCard && !editCardId) throw new Error("Select a credit card.");
+      const cardSelection = editNeedsCard ? parseCardSelectId(editCardSelectId) : null;
+      if (editNeedsCard && !cardSelection) throw new Error("Select a credit card.");
+      if (editNeedsDebtAccount && !editDebtAccountId)
+        throw new Error("Select a debt account.");
 
       const newName = fallbackTxnName(
         editCategoryId,
-        editNeedsCard ? editCardId : null,
-        editDescription
+        cardSelection?.kind === "card" ? cardSelection.id : null,
+        editDescription,
+        editNeedsDebtAccount
+          ? editDebtAccountId
+          : cardSelection?.kind === "debt"
+          ? cardSelection.id
+          : null
       );
 
       const payload: any = {
@@ -367,7 +517,12 @@ export default function TransactionsPage() {
         name: newName,
         amount: amt,
         category_id: editCategoryId,
-        credit_card_id: editNeedsCard ? editCardId : null,
+        credit_card_id: cardSelection?.kind === "card" ? cardSelection.id : null,
+        debt_account_id: editNeedsDebtAccount
+          ? editDebtAccountId
+          : cardSelection?.kind === "debt"
+          ? cardSelection.id
+          : null,
       };
 
       const oldRequiresCard =
@@ -375,7 +530,12 @@ export default function TransactionsPage() {
       const newRequiresCard = editNeedsCard;
 
       const oldCardId = t.credit_card_id ?? null;
-      const newCardId = editNeedsCard ? editCardId : null;
+      const newCardId = payload.credit_card_id ?? null;
+
+      const oldRequiresDebt = !!t.debt_account_id;
+      const newRequiresDebt = !!payload.debt_account_id;
+      const oldDebtId = t.debt_account_id ?? null;
+      const newDebtId = payload.debt_account_id ?? null;
 
       const { error } = await supabase
         .from("transactions")
@@ -397,6 +557,20 @@ export default function TransactionsPage() {
         await adjustCardBalance(newCardId, -amt);
       }
 
+      if (oldRequiresDebt && newRequiresDebt && oldDebtId && newDebtId) {
+        if (oldDebtId === newDebtId) {
+          const delta = t.amount - amt;
+          if (delta !== 0) await adjustDebtBalance(oldDebtId, delta);
+        } else {
+          await adjustDebtBalance(oldDebtId, t.amount);
+          await adjustDebtBalance(newDebtId, -amt);
+        }
+      } else if (oldRequiresDebt && oldDebtId) {
+        await adjustDebtBalance(oldDebtId, t.amount);
+      } else if (newRequiresDebt && newDebtId) {
+        await adjustDebtBalance(newDebtId, -amt);
+      }
+
       setTxns((prev) =>
         prev.map((x) =>
           x.id === t.id
@@ -406,7 +580,8 @@ export default function TransactionsPage() {
                 name: newName,
                 amount: amt,
                 category_id: editCategoryId,
-                credit_card_id: editNeedsCard ? editCardId : null,
+                credit_card_id: payload.credit_card_id ?? null,
+                debt_account_id: payload.debt_account_id ?? null,
               }
             : x
         )
@@ -428,12 +603,17 @@ export default function TransactionsPage() {
       const oldRequiresCard =
         !!t.category_id && creditCardCategoryIds.includes(t.category_id);
       const oldCardId = t.credit_card_id ?? null;
+      const oldRequiresDebt = !!t.debt_account_id;
+      const oldDebtId = t.debt_account_id ?? null;
 
       const { error } = await supabase.from("transactions").delete().eq("id", t.id);
       if (error) throw error;
 
       if (oldRequiresCard && oldCardId) {
         await adjustCardBalance(oldCardId, t.amount);
+      }
+      if (oldRequiresDebt && oldDebtId) {
+        await adjustDebtBalance(oldDebtId, t.amount);
       }
 
       setTxns((prev) => prev.filter((x) => x.id !== t.id));
@@ -576,33 +756,31 @@ export default function TransactionsPage() {
             {/* Category */}
             <label className="grid w-full gap-1 sm:w-auto">
               <span className="text-sm text-zinc-700 dark:text-zinc-300">Category</span>
-          <select
-  value={categoryId}
-  onChange={(e) => setCategoryId(e.target.value)}
-  className="w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 sm:min-w-[240px] dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
->
-  <option value="">Select category</option>
-
-  {(["income", "expense", "debt", "misc"] as const).map((group) => {
-    const groupCats = categories.filter((c) => c.group_name === group);
-    if (groupCats.length === 0) return null;
-
-    return (
-      <optgroup
-        key={group}
-        label={group.charAt(0).toUpperCase() + group.slice(1)}
-      >
-        {groupCats.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </optgroup>
-    );
-  })}
-</select>
-
-
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 sm:min-w-[240px] dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+              >
+                <option value="">Select category</option>
+                {(["income", "giving", "savings", "expense", "debt", "misc"] as const).map(
+                  (group) => {
+                    const groupCats = categories.filter((c) => c.group_name === group);
+                    if (groupCats.length === 0) return null;
+                    return (
+                      <optgroup
+                        key={group}
+                        label={group.charAt(0).toUpperCase() + group.slice(1)}
+                      >
+                        {groupCats.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  }
+                )}
+              </select>
             </label>
 
             {/* Card (conditional) */}
@@ -612,16 +790,38 @@ export default function TransactionsPage() {
                   Credit card
                 </span>
                 <select
-                  value={cardId}
-                  onChange={(e) => setCardId(e.target.value)}
+                  value={cardSelectId}
+                  onChange={(e) => setCardSelectId(e.target.value)}
                   className="w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 sm:min-w-[240px] dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                 >
                   <option value="">Select a card</option>
-                  {cards.map((cc) => (
-                    <option key={cc.id} value={cc.id}>
+                  {cardLikeAccounts.map((cc) => (
+                    <option key={`${cc.kind}:${cc.id}`} value={`${cc.kind}:${cc.id}`}>
                       {cc.name}
                     </option>
                   ))}
+                </select>
+              </label>
+            )}
+
+            {needsDebtAccount && (
+              <label className="grid w-full gap-1 sm:w-auto">
+                <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                  Debt account
+                </span>
+                <select
+                  value={debtAccountId}
+                  onChange={(e) => setDebtAccountId(e.target.value)}
+                  className="w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 sm:min-w-[240px] dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                >
+                  <option value="">Select a debt account</option>
+                  {debtAccounts
+                    .filter((d) => d.debt_type !== "credit_card")
+                    .map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
                 </select>
               </label>
             )}
@@ -660,7 +860,8 @@ export default function TransactionsPage() {
           </div>
 
           <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-            Tip: Any <b>Debt</b> category containing <b>"credit card"</b> will ask you to pick a card.
+            Tip: Any <b>Debt</b> category containing <b>"credit card"</b> will ask you to pick
+            a card. Other debt categories will ask for a debt account.
           </div>
         </section>
 
@@ -675,13 +876,15 @@ export default function TransactionsPage() {
               txns.map((t) => {
                 const cat = t.category_id ? categoryById.get(t.category_id) : null;
                 const card = t.credit_card_id ? cardById.get(t.credit_card_id) : null;
+                const debt = t.debt_account_id ? debtById.get(t.debt_account_id) : null;
 
                 const itemLabel =
                   t.category_id
                     ? fallbackTxnName(
                         t.category_id,
                         t.credit_card_id,
-                        t.name ?? null
+                        t.name ?? null,
+                        t.debt_account_id ?? null
                       )
                     : (t.name ?? "Transaction");
 
@@ -755,7 +958,8 @@ export default function TransactionsPage() {
                               className="mt-1 w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                             >
                               <option value="">Select category</option>
-                              {(["income", "expense", "debt", "misc"] as const).map((group) => {
+                              {(["income", "giving", "savings", "expense", "debt", "misc"] as const).map(
+                                (group) => {
                                 const groupCats = categories.filter((c) => c.group_name === group);
                                 if (groupCats.length === 0) return null;
                                 return (
@@ -780,16 +984,37 @@ export default function TransactionsPage() {
                                 Credit card
                               </div>
                               <select
-                                value={editCardId}
-                                onChange={(e) => setEditCardId(e.target.value)}
+                                value={editCardSelectId}
+                                onChange={(e) => setEditCardSelectId(e.target.value)}
                                 className="mt-1 w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                               >
                                 <option value="">Select a card</option>
-                                {cards.map((cc) => (
-                                  <option key={cc.id} value={cc.id}>
+                                {cardLikeAccounts.map((cc) => (
+                                  <option key={`${cc.kind}:${cc.id}`} value={`${cc.kind}:${cc.id}`}>
                                     {cc.name}
                                   </option>
                                 ))}
+                              </select>
+                            </div>
+                          )}
+                          {editNeedsDebtAccount && (
+                            <div>
+                              <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                                Debt account
+                              </div>
+                              <select
+                                value={editDebtAccountId}
+                                onChange={(e) => setEditDebtAccountId(e.target.value)}
+                                className="mt-1 w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                              >
+                                <option value="">Select a debt account</option>
+                                {debtAccounts
+                                  .filter((d) => d.debt_type !== "credit_card")
+                                  .map((d) => (
+                                    <option key={d.id} value={d.id}>
+                                      {d.name}
+                                    </option>
+                                  ))}
                               </select>
                             </div>
                           )}
@@ -797,10 +1022,10 @@ export default function TransactionsPage() {
                       ) : (
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-600 dark:text-zinc-400">
                           <span>{cat ? `${cat.group_name} - ${cat.name}` : "--"}</span>
-                          {card?.name ? (
+                          {card?.name || debt?.name ? (
                             <>
-                              <span className="text-zinc-400">•</span>
-                              <span>{card.name}</span>
+                              <span className="text-zinc-400">-</span>
+                              <span>{card?.name ?? debt?.name}</span>
                             </>
                           ) : null}
                         </div>
@@ -863,13 +1088,15 @@ export default function TransactionsPage() {
                   txns.map((t) => {
                     const cat = t.category_id ? categoryById.get(t.category_id) : null;
                     const card = t.credit_card_id ? cardById.get(t.credit_card_id) : null;
+                    const debt = t.debt_account_id ? debtById.get(t.debt_account_id) : null;
 
                     const itemLabel =
                       t.category_id
                         ? fallbackTxnName(
                             t.category_id,
                             t.credit_card_id,
-                            t.name ?? null
+                            t.name ?? null,
+                            t.debt_account_id ?? null
                           )
                         : (t.name ?? "Transaction");
 
@@ -929,7 +1156,8 @@ export default function TransactionsPage() {
                               className="min-w-[200px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                             >
                               <option value="">Select category</option>
-                              {(["income", "expense", "debt", "misc"] as const).map((group) => {
+                              {(["income", "giving", "savings", "expense", "debt", "misc"] as const).map(
+                                (group) => {
                                 const groupCats = categories.filter(
                                   (c) => c.group_name === group
                                 );
@@ -959,22 +1187,37 @@ export default function TransactionsPage() {
                           {isEditing ? (
                             editNeedsCard ? (
                               <select
-                                value={editCardId}
-                                onChange={(e) => setEditCardId(e.target.value)}
+                                value={editCardSelectId}
+                                onChange={(e) => setEditCardSelectId(e.target.value)}
                                 className="min-w-[180px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                               >
                                 <option value="">Select a card</option>
-                                {cards.map((cc) => (
-                                  <option key={cc.id} value={cc.id}>
+                                {cardLikeAccounts.map((cc) => (
+                                  <option key={`${cc.kind}:${cc.id}`} value={`${cc.kind}:${cc.id}`}>
                                     {cc.name}
                                   </option>
                                 ))}
+                              </select>
+                            ) : editNeedsDebtAccount ? (
+                              <select
+                                value={editDebtAccountId}
+                                onChange={(e) => setEditDebtAccountId(e.target.value)}
+                                className="min-w-[180px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                              >
+                                <option value="">Select a debt account</option>
+                                {debtAccounts
+                                  .filter((d) => d.debt_type !== "credit_card")
+                                  .map((d) => (
+                                    <option key={d.id} value={d.id}>
+                                      {d.name}
+                                    </option>
+                                  ))}
                               </select>
                             ) : (
                               <span className="text-zinc-600 dark:text-zinc-400">--</span>
                             )
                           ) : (
-                            card?.name ?? "--"
+                            card?.name ?? debt?.name ?? "--"
                           )}
                         </td>
                         <td className="p-3 text-right tabular-nums">

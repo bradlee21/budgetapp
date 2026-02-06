@@ -797,11 +797,18 @@ export default function BudgetPage() {
 
   // NEW RULE: any DEBT category containing "credit card" is treated as "credit card payment"
   const creditCardCategoryIds = useMemo(() => {
+    const byId = new Map(categories.map((c) => [c.id, c]));
     return categories
-      .filter(
-        (c) =>
-          c.group_name === "debt" && c.name.toLowerCase().includes("credit card")
-      )
+      .filter((c) => {
+        if (c.group_name !== "debt") return false;
+        const name = c.name.toLowerCase();
+        if (name.includes("credit card")) return true;
+        if (c.parent_id) {
+          const parent = byId.get(c.parent_id);
+          return !!parent && parent.name.toLowerCase().includes("credit card");
+        }
+        return false;
+      })
       .map((c) => c.id);
   }, [categories]);
 
