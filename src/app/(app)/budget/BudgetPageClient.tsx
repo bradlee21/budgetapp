@@ -143,6 +143,81 @@ function SectionTotals({
   );
 }
 
+function SwipeRow({
+  enabled,
+  onDelete,
+  deleteLabel = "Delete",
+  children,
+}: {
+  enabled: boolean;
+  onDelete: () => void;
+  deleteLabel?: string;
+  children: ReactNode;
+}) {
+  const [offset, setOffset] = useState(0);
+  const startXRef = useRef(0);
+  const startYRef = useRef(0);
+  const swipingRef = useRef(false);
+
+  return (
+    <div
+      className="relative overflow-hidden"
+      onTouchStart={(e) => {
+        if (!enabled) return;
+        if (offset !== 0) setOffset(0);
+        const touch = e.touches[0];
+        startXRef.current = touch.clientX;
+        startYRef.current = touch.clientY;
+        swipingRef.current = false;
+      }}
+      onTouchMove={(e) => {
+        if (!enabled) return;
+        const touch = e.touches[0];
+        const dx = touch.clientX - startXRef.current;
+        const dy = touch.clientY - startYRef.current;
+        if (!swipingRef.current) {
+          if (Math.abs(dx) > Math.abs(dy) + 6) {
+            swipingRef.current = true;
+          } else {
+            return;
+          }
+        }
+        if (dx < 0) {
+          e.preventDefault();
+          setOffset(Math.max(dx, -80));
+        } else {
+          setOffset(0);
+        }
+      }}
+      onTouchEnd={() => {
+        if (!enabled) return;
+        if (swipingRef.current) {
+          setOffset((prev) => (prev < -50 ? -80 : 0));
+        }
+        swipingRef.current = false;
+      }}
+    >
+      {enabled && (
+        <button
+          onClick={() => {
+            setOffset(0);
+            onDelete();
+          }}
+          className="absolute right-0 top-0 h-full w-20 bg-red-600 text-xs font-semibold text-white"
+        >
+          {deleteLabel}
+        </button>
+      )}
+      <div
+        className="transition-transform duration-150"
+        style={{ transform: `translateX(${offset}px)` }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function BudgetTable({
   rows,
   onDrop,
@@ -152,6 +227,12 @@ function BudgetTable({
   onSavePlanned,
   onCancelPlanned,
   onStartEditPlanned,
+  editNameId,
+  editNameValue,
+  setEditNameValue,
+  onStartEditName,
+  onSaveName,
+  onCancelName,
   setDragCategoryId,
   onDeleteCategory,
   plannedLabel,
@@ -166,6 +247,12 @@ function BudgetTable({
   onSavePlanned: (rowId: string) => void;
   onCancelPlanned: () => void;
   onStartEditPlanned: (rowId: string, planned: number) => void;
+  editNameId: string | null;
+  editNameValue: string;
+  setEditNameValue: (v: string) => void;
+  onStartEditName: (categoryId: string, currentName: string) => void;
+  onSaveName: (categoryId: string) => void;
+  onCancelName: () => void;
   setDragCategoryId: (id: string | null) => void;
   onDeleteCategory: (categoryId: string) => void;
   plannedLabel: string;
@@ -173,7 +260,6 @@ function BudgetTable({
   remainingLabel: string;
 }) {
   const showOrder = rows.some((r) => r.orderableCategoryId);
-  const showDelete = rows.some((r) => r.deletableCategoryId);
   return (
     <>
       <div className="space-y-3 sm:hidden">
@@ -183,36 +269,80 @@ function BudgetTable({
           </div>
         ) : (
           rows.map((r) => (
-            <div
+            <SwipeRow
               key={r.id}
-              className="rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
-              onDragOver={
-                r.orderableCategoryId
-                  ? (e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }
-                  : undefined
-              }
-              onDrop={
-                r.orderableCategoryId
-                  ? (e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const draggedId = e.dataTransfer.getData("text/plain");
-                      if (draggedId) setDragCategoryId(draggedId);
-                      onDrop(r.orderableCategoryId!, draggedId || null);
-                    }
-                  : undefined
-              }
+              enabled={!!r.deletableCategoryId}
+              onDelete={() => onDeleteCategory(r.deletableCategoryId!)}
+              deleteLabel="Delete"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="font-medium">{r.label}</div>
-                  {r.extra && (
-                    <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                      {r.extra}
-                    </div>
+              <div
+                className="rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
+                onDragOver={
+                  r.orderableCategoryId
+                    ? (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
+                    : undefined
+                }
+                onDrop={
+                  r.orderableCategoryId
+                    ? (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const draggedId = e.dataTransfer.getData("text/plain");
+                        if (draggedId) setDragCategoryId(draggedId);
+                        onDrop(r.orderableCategoryId!, draggedId || null);
+                      }
+                    : undefined
+                }
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    {r.orderableCategoryId && editNameId === r.orderableCategoryId ? (
+                      <div className="grid gap-2">
+                        <input
+                          value={editNameValue}
+                          onChange={(e) => setEditNameValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") onSaveName(r.orderableCategoryId!);
+                            if (e.key === "Escape") onCancelName();
+                          }}
+                          autoFocus
+                          className="w-full rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => onSaveName(r.orderableCategoryId!)}
+                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={onCancelName}
+                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : r.orderableCategoryId ? (
+                      <button
+                        onClick={() =>
+                          onStartEditName(r.orderableCategoryId!, r.label)
+                        }
+                        className="rounded-md text-left text-sm font-medium text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
+                        title="Edit name"
+                      >
+                        {r.label}
+                      </button>
+                    ) : (
+                      <div className="font-medium">{r.label}</div>
+                    )}
+                    {r.extra && (
+                      <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                        {r.extra}
+                      </div>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
@@ -231,16 +361,6 @@ function BudgetTable({
                       className="cursor-grab rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
                     >
                       ::
-                    </button>
-                  ) : null}
-                  {showDelete && r.deletableCategoryId ? (
-                    <button
-                      onClick={() => onDeleteCategory(r.deletableCategoryId!)}
-                      className="rounded-md border border-red-300 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-zinc-950 dark:text-red-200 dark:hover:bg-red-950"
-                      aria-label="Delete"
-                      title="Delete"
-                    >
-                      X
                     </button>
                   ) : null}
                 </div>
@@ -297,7 +417,8 @@ function BudgetTable({
               <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
                 {actualLabel}: <span className="font-semibold">{formatMoney(r.actual)}</span>
               </div>
-            </div>
+              </div>
+            </SwipeRow>
           ))
         )}
       </div>
@@ -317,7 +438,6 @@ function BudgetTable({
               <th className="p-2 text-right text-zinc-500 dark:text-zinc-400">
                 {remainingLabel}
               </th>
-              {showDelete && <th className="p-2 text-right"></th>}
             </tr>
           </thead>
           <tbody className="text-zinc-900 dark:text-zinc-100">
@@ -325,7 +445,7 @@ function BudgetTable({
               <tr>
                 <td
                   className="p-2 text-zinc-600 dark:text-zinc-300"
-                  colSpan={showOrder ? (showDelete ? 6 : 5) : showDelete ? 5 : 4}
+                  colSpan={showOrder ? 5 : 4}
                 >
                   Nothing here yet.
                 </td>
@@ -335,6 +455,14 @@ function BudgetTable({
                 <tr
                   key={r.id}
                   className="group border-t border-zinc-200 dark:border-zinc-800"
+                  onContextMenu={
+                    r.deletableCategoryId
+                      ? (e) => {
+                          e.preventDefault();
+                          onDeleteCategory(r.deletableCategoryId!);
+                        }
+                      : undefined
+                  }
                   onDragOver={
                     r.orderableCategoryId
                       ? (e) => {
@@ -361,7 +489,44 @@ function BudgetTable({
                         className="font-medium"
                         style={{ paddingLeft: (r.indent ?? 0) * 16 }}
                       >
-                        {r.label}
+                        {r.orderableCategoryId && editNameId === r.orderableCategoryId ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              value={editNameValue}
+                              onChange={(e) => setEditNameValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") onSaveName(r.orderableCategoryId!);
+                                if (e.key === "Escape") onCancelName();
+                              }}
+                              autoFocus
+                              className="w-[220px] rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                            />
+                            <button
+                              onClick={() => onSaveName(r.orderableCategoryId!)}
+                              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={onCancelName}
+                              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : r.orderableCategoryId ? (
+                          <button
+                            onClick={() =>
+                              onStartEditName(r.orderableCategoryId!, r.label)
+                            }
+                            className="rounded-md text-left text-sm font-medium text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
+                            title="Edit name"
+                          >
+                            {r.label}
+                          </button>
+                        ) : (
+                          r.label
+                        )}
                       </div>
                     </div>
                     {r.extra && (
@@ -436,22 +601,6 @@ function BudgetTable({
                   <td className="p-2 text-right tabular-nums">
                     {formatMoney(r.remaining)}
                   </td>
-                  {showDelete && (
-                    <td className="p-2 text-right">
-                      {r.deletableCategoryId ? (
-                        <button
-                          onClick={() => onDeleteCategory(r.deletableCategoryId!)}
-                          className="rounded-md border border-red-300 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-zinc-950 dark:text-red-200 dark:hover:bg-red-950"
-                          aria-label="Delete"
-                          title="Delete"
-                        >
-                          X
-                        </button>
-                      ) : (
-                        <span className="text-zinc-500">--</span>
-                      )}
-                    </td>
-                  )}
                 </tr>
               ))
             )}
@@ -494,6 +643,8 @@ export default function BudgetPage() {
   const [savingAvailable, setSavingAvailable] = useState(false);
   const [editPlannedKey, setEditPlannedKey] = useState<string | null>(null);
   const [editPlannedAmount, setEditPlannedAmount] = useState("");
+  const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState("");
   const [dragCategoryId, setDragCategoryId] = useState<string | null>(null);
   const [newGroupName, setNewGroupName] = useState({
     income: "",
@@ -533,6 +684,16 @@ export default function BudgetPage() {
   const [debtMinPayment, setDebtMinPayment] = useState("");
   const [debtDueDate, setDebtDueDate] = useState("");
   const [debtDueDateError, setDebtDueDateError] = useState("");
+  const [editDebtId, setEditDebtId] = useState<string | null>(null);
+  const [editDebtType, setEditDebtType] = useState<
+    "credit_card" | "loan" | "mortgage" | "student_loan" | "other"
+  >("credit_card");
+  const [editDebtName, setEditDebtName] = useState("");
+  const [editDebtBalance, setEditDebtBalance] = useState("");
+  const [editDebtApr, setEditDebtApr] = useState("");
+  const [editDebtMinPayment, setEditDebtMinPayment] = useState("");
+  const [editDebtDueDate, setEditDebtDueDate] = useState("");
+  const [editDebtDueDateError, setEditDebtDueDateError] = useState("");
   const [addIncomeOpen, setAddIncomeOpen] = useState(false);
   const [addGivingOpen, setAddGivingOpen] = useState(false);
   const [addSavingsOpen, setAddSavingsOpen] = useState(false);
@@ -1509,6 +1670,115 @@ export default function BudgetPage() {
       await createCategory({ group, name, parentId });
       setNewChildName((prev) => ({ ...prev, [parentId]: "" }));
       setMsg(`Added "${name}".`);
+    } catch (e: any) {
+      setMsg(e?.message ?? String(e));
+    }
+  }
+
+  function startEditCategoryName(categoryId: string, currentName: string) {
+    setEditCategoryId(categoryId);
+    setEditCategoryName(currentName);
+  }
+
+  function cancelEditCategoryName() {
+    setEditCategoryId(null);
+    setEditCategoryName("");
+  }
+
+  async function saveCategoryName(categoryId: string) {
+    setMsg("");
+    try {
+      const name = editCategoryName.trim();
+      if (!name) throw new Error("Enter a name.");
+      const { error } = await supabase
+        .from("categories")
+        .update({ name })
+        .eq("id", categoryId);
+      if (error) throw error;
+      setCategories((prev) =>
+        prev.map((c) => (c.id === categoryId ? { ...c, name } : c))
+      );
+      setEditCategoryId(null);
+      setEditCategoryName("");
+    } catch (e: any) {
+      setMsg(e?.message ?? String(e));
+    }
+  }
+
+  function startEditDebt(d: DebtAccount) {
+    setEditDebtId(d.id);
+    setEditDebtName(d.name);
+    setEditDebtType(d.debt_type);
+    setEditDebtBalance(String(d.balance));
+    setEditDebtApr(d.apr === null ? "" : String(d.apr));
+    setEditDebtMinPayment(d.min_payment === null ? "" : String(d.min_payment));
+    setEditDebtDueDate(d.due_date ?? "");
+    setEditDebtDueDateError("");
+  }
+
+  function cancelEditDebt() {
+    setEditDebtId(null);
+    setEditDebtName("");
+    setEditDebtBalance("");
+    setEditDebtApr("");
+    setEditDebtMinPayment("");
+    setEditDebtDueDate("");
+    setEditDebtDueDateError("");
+  }
+
+  async function saveEditDebt() {
+    if (!editDebtId) return;
+    setMsg("");
+    try {
+      const name = editDebtName.trim();
+      if (!name) throw new Error("Enter a debt name.");
+      const bal = Number(editDebtBalance);
+      const apr = editDebtApr.trim() === "" ? null : Number(editDebtApr);
+      const minPay =
+        editDebtMinPayment.trim() === "" ? null : Number(editDebtMinPayment);
+      if (!Number.isFinite(bal)) throw new Error("Balance must be a number.");
+      if (apr !== null && !Number.isFinite(apr))
+        throw new Error("APR must be a number.");
+      if (minPay !== null && !Number.isFinite(minPay))
+        throw new Error("Min payment must be a number.");
+      const dueErr = validateDateInput(editDebtDueDate, { allowEmpty: true });
+      setEditDebtDueDateError(dueErr);
+      if (dueErr) throw new Error(dueErr);
+
+      const { data, error } = await supabase
+        .from("debt_accounts")
+        .update({
+          name,
+          debt_type: editDebtType,
+          balance: bal,
+          apr,
+          min_payment: minPay,
+          due_date: editDebtDueDate || null,
+        })
+        .eq("id", editDebtId)
+        .select("id, name, debt_type, balance, apr, min_payment, due_date")
+        .single();
+      if (error) throw error;
+
+      setDebtAccounts((prev) =>
+        prev.map((d) =>
+          d.id === editDebtId
+            ? {
+                id: data.id,
+                name: data.name,
+                debt_type: (data.debt_type ??
+                  "credit_card") as DebtAccount["debt_type"],
+                balance: Number(data.balance),
+                apr: data.apr === null ? null : Number(data.apr),
+                min_payment:
+                  data.min_payment === null ? null : Number(data.min_payment),
+                due_date: data.due_date ?? null,
+              }
+            : d
+        )
+      );
+      cancelEditDebt();
+      setMsg("Debt account updated.");
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
     }
@@ -2559,6 +2829,12 @@ export default function BudgetPage() {
                 onSavePlanned={updatePlannedTotal}
                 onCancelPlanned={cancelEditPlanned}
                 onStartEditPlanned={startEditPlanned}
+                editNameId={editCategoryId}
+                editNameValue={editCategoryName}
+                setEditNameValue={setEditCategoryName}
+                onStartEditName={startEditCategoryName}
+                onSaveName={saveCategoryName}
+                onCancelName={cancelEditCategoryName}
                 setDragCategoryId={setDragCategoryId}
                 onDeleteCategory={removeCategory}
                 plannedLabel="Planned"
@@ -2631,6 +2907,12 @@ export default function BudgetPage() {
                 onSavePlanned={updatePlannedTotal}
                 onCancelPlanned={cancelEditPlanned}
                 onStartEditPlanned={startEditPlanned}
+                editNameId={editCategoryId}
+                editNameValue={editCategoryName}
+                setEditNameValue={setEditCategoryName}
+                onStartEditName={startEditCategoryName}
+                onSaveName={saveCategoryName}
+                onCancelName={cancelEditCategoryName}
                 setDragCategoryId={setDragCategoryId}
                 onDeleteCategory={removeCategory}
                 plannedLabel="Planned"
@@ -2703,6 +2985,12 @@ export default function BudgetPage() {
                 onSavePlanned={updatePlannedTotal}
                 onCancelPlanned={cancelEditPlanned}
                 onStartEditPlanned={startEditPlanned}
+                editNameId={editCategoryId}
+                editNameValue={editCategoryName}
+                setEditNameValue={setEditCategoryName}
+                onStartEditName={startEditCategoryName}
+                onSaveName={saveCategoryName}
+                onCancelName={cancelEditCategoryName}
                 setDragCategoryId={setDragCategoryId}
                 onDeleteCategory={removeCategory}
                 plannedLabel="Planned"
@@ -2768,22 +3056,33 @@ export default function BudgetPage() {
             >
               <div className="grid gap-4">
                 {expenseGrouped.groups.map((group) => (
-                  <div
+                  <SwipeRow
                     key={group.id}
-                    className="rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const draggedId = e.dataTransfer.getData("text/plain");
-                      if (draggedId) setDragCategoryId(draggedId);
-                      onDropCategory(group.id, draggedId || null);
-                    }}
+                    enabled
+                    onDelete={() => removeCategory(group.id)}
+                    deleteLabel="Delete group"
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div
+                      className="rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const draggedId = e.dataTransfer.getData("text/plain");
+                        if (draggedId) setDragCategoryId(draggedId);
+                        onDropCategory(group.id, draggedId || null);
+                      }}
+                    >
+                    <div
+                      className="flex flex-wrap items-center justify-between gap-3"
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        removeCategory(group.id);
+                      }}
+                    >
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -2800,18 +3099,41 @@ export default function BudgetPage() {
                         >
                           ::
                         </button>
-                        <div className="font-semibold text-zinc-900 dark:text-zinc-100">
-                          {group.label}
-                        </div>
+                        {editCategoryId === group.id ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <input
+                              value={editCategoryName}
+                              onChange={(e) => setEditCategoryName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") saveCategoryName(group.id);
+                                if (e.key === "Escape") cancelEditCategoryName();
+                              }}
+                              autoFocus
+                              className="w-[200px] rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                            />
+                            <button
+                              onClick={() => saveCategoryName(group.id)}
+                              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={cancelEditCategoryName}
+                              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => startEditCategoryName(group.id, group.label)}
+                            className="rounded-md text-left text-sm font-semibold text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
+                            title="Edit group name"
+                          >
+                            {group.label}
+                          </button>
+                        )}
                       </div>
-                      <button
-                        onClick={() => removeCategory(group.id)}
-                        className="rounded-md border border-red-300 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-zinc-950 dark:text-red-200 dark:hover:bg-red-950"
-                        aria-label="Delete group"
-                        title="Delete group"
-                      >
-                        X
-                      </button>
                       <div className="text-xs text-zinc-600 dark:text-zinc-400">
                         Planned {formatMoney(group.totals.planned)} - Spent{" "}
                         {formatMoney(group.totals.actual)} - Remaining{" "}
@@ -2828,6 +3150,12 @@ export default function BudgetPage() {
                         onSavePlanned={updatePlannedTotal}
                         onCancelPlanned={cancelEditPlanned}
                         onStartEditPlanned={startEditPlanned}
+                        editNameId={editCategoryId}
+                        editNameValue={editCategoryName}
+                        setEditNameValue={setEditCategoryName}
+                        onStartEditName={startEditCategoryName}
+                        onSaveName={saveCategoryName}
+                        onCancelName={cancelEditCategoryName}
                         setDragCategoryId={setDragCategoryId}
                         onDeleteCategory={removeCategory}
                         plannedLabel="Planned"
@@ -2881,8 +3209,9 @@ export default function BudgetPage() {
                       </button>
                     )}
                   </div>
-                </div>
-              ))}
+                    </div>
+                  </SwipeRow>
+                ))}
             </div>
               <div className="mt-4 flex flex-wrap items-end gap-2">
                 {addExpenseGroupOpen ? (
@@ -2950,6 +3279,12 @@ export default function BudgetPage() {
                 onSavePlanned={updatePlannedTotal}
                 onCancelPlanned={cancelEditPlanned}
                 onStartEditPlanned={startEditPlanned}
+                editNameId={editCategoryId}
+                editNameValue={editCategoryName}
+                setEditNameValue={setEditCategoryName}
+                onStartEditName={startEditCategoryName}
+                onSaveName={saveCategoryName}
+                onCancelName={cancelEditCategoryName}
                 setDragCategoryId={setDragCategoryId}
                 onDeleteCategory={removeCategory}
                 plannedLabel="Planned"
@@ -3808,28 +4143,153 @@ export default function BudgetPage() {
                   </div>
                 ) : (
                   debtAccounts.map((d) => (
-                    <div
+                    <SwipeRow
                       key={d.id}
-                      className="rounded-md border border-zinc-200 bg-white p-3 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                      enabled={editDebtId !== d.id}
+                      onDelete={() => deleteDebtAccount(d)}
+                      deleteLabel="Delete"
                     >
-                      <div className="font-semibold text-zinc-900 dark:text-zinc-100">
-                        {d.name}
-                      </div>
-                      <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                        Type {debtTypeLabel(d.debt_type)} | Balance {formatMoney(d.balance)} | APR{" "}
-                        {d.apr === null ? "--" : `${d.apr}%`} | Min{" "}
-                        {d.min_payment === null ? "--" : formatMoney(d.min_payment)} | Due{" "}
-                        {d.due_date ?? "--"}
-                      </div>
+                      <div
+                        className="rounded-md border border-zinc-200 bg-white p-3 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                        onContextMenu={(e) => {
+                          if (editDebtId === d.id) return;
+                          e.preventDefault();
+                          deleteDebtAccount(d);
+                        }}
+                      >
+                      {editDebtId === d.id ? (
+                        <div className="grid gap-2">
+                          <label className="grid gap-1 text-xs text-zinc-600 dark:text-zinc-400">
+                            Type
+                            <select
+                              value={editDebtType}
+                              onChange={(e) =>
+                                setEditDebtType(
+                                  e.target.value as DebtAccount["debt_type"]
+                                )
+                              }
+                              className="rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                            >
+                              <option value="credit_card">Credit card</option>
+                              <option value="loan">Loan</option>
+                              <option value="mortgage">Mortgage</option>
+                              <option value="student_loan">Student loan</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </label>
+
+                          <label className="grid gap-1 text-xs text-zinc-600 dark:text-zinc-400">
+                            Name
+                            <input
+                              value={editDebtName}
+                              onChange={(e) => setEditDebtName(e.target.value)}
+                              className="rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                            />
+                          </label>
+
+                          <label className="grid gap-1 text-xs text-zinc-600 dark:text-zinc-400">
+                            Balance
+                            <input
+                              value={editDebtBalance}
+                              onChange={(e) => setEditDebtBalance(e.target.value)}
+                              inputMode="decimal"
+                              className="rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                            />
+                          </label>
+
+                          <label className="grid gap-1 text-xs text-zinc-600 dark:text-zinc-400">
+                            APR
+                            <input
+                              value={editDebtApr}
+                              onChange={(e) => setEditDebtApr(e.target.value)}
+                              inputMode="decimal"
+                              className="rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                            />
+                          </label>
+
+                          <label className="grid gap-1 text-xs text-zinc-600 dark:text-zinc-400">
+                            Min payment
+                            <input
+                              value={editDebtMinPayment}
+                              onChange={(e) => setEditDebtMinPayment(e.target.value)}
+                              inputMode="decimal"
+                              className="rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                            />
+                          </label>
+
+                          <label className="grid gap-1 text-xs text-zinc-600 dark:text-zinc-400">
+                            Due date
+                            <input
+                              type="date"
+                              value={editDebtDueDate}
+                              min="2000-01-01"
+                              max="2100-12-31"
+                              onChange={(e) => {
+                                if (e.target.value.length > 10) return;
+                                setEditDebtDueDate(e.target.value);
+                                if (editDebtDueDateError) setEditDebtDueDateError("");
+                              }}
+                              onBlur={() =>
+                                setEditDebtDueDateError(
+                                  validateDateInput(editDebtDueDate, { allowEmpty: true })
+                                )
+                              }
+                              className="rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                            />
+                            {editDebtDueDateError && (
+                              <div className="text-xs text-red-600 dark:text-red-400">
+                                {editDebtDueDateError}
+                              </div>
+                            )}
+                          </label>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => startEditDebt(d)}
+                            className="rounded-md text-left text-sm font-semibold text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
+                            title="Edit debt account"
+                          >
+                            {d.name}
+                          </button>
+                          <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                            Type {debtTypeLabel(d.debt_type)} | Balance{" "}
+                            {formatMoney(d.balance)} | APR{" "}
+                            {d.apr === null ? "--" : `${d.apr}%`} | Min{" "}
+                            {d.min_payment === null ? "--" : formatMoney(d.min_payment)} | Due{" "}
+                            {d.due_date ?? "--"}
+                          </div>
+                        </>
+                      )}
                       <div className="mt-2 flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => deleteDebtAccount(d)}
-                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                        >
-                          Delete
-                        </button>
+                        {editDebtId === d.id ? (
+                          <>
+                            <button
+                              onClick={saveEditDebt}
+                              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={cancelEditDebt}
+                              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => startEditDebt(d)}
+                              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            >
+                              Edit
+                            </button>
+                          </>
+                        )}
                       </div>
-                    </div>
+                      </div>
+                    </SwipeRow>
                   ))
                 )}
               </div>
