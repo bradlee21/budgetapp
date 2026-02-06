@@ -657,66 +657,67 @@ export default function TransactionsPage() {
                       )}
                     </div>
 
-                    <div className="mt-3 grid gap-2 text-sm">
-                      <div>
-                        <div className="text-xs text-zinc-600 dark:text-zinc-400">Category</div>
-                        {isEditing ? (
-                          <select
-                            value={editCategoryId}
-                            onChange={(e) => setEditCategoryId(e.target.value)}
-                            className="mt-1 w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                          >
-                            <option value="">Select category</option>
-                            {(["income", "expense", "debt", "misc"] as const).map((group) => {
-                              const groupCats = categories.filter((c) => c.group_name === group);
-                              if (groupCats.length === 0) return null;
-                              return (
-                                <optgroup
-                                  key={group}
-                                  label={group.charAt(0).toUpperCase() + group.slice(1)}
-                                >
-                                  {groupCats.map((c) => (
-                                    <option key={c.id} value={c.id}>
-                                      {c.name}
-                                    </option>
-                                  ))}
-                                </optgroup>
-                              );
-                            })}
-                          </select>
-                        ) : (
-                          <div className="mt-1 text-sm text-zinc-900 dark:text-zinc-100">
-                            {cat ? `${cat.group_name} - ${cat.name}` : "--"}
+                    <div className="mt-3">
+                      {isEditing ? (
+                        <div className="grid gap-2 text-sm">
+                          <div>
+                            <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                              Category
+                            </div>
+                            <select
+                              value={editCategoryId}
+                              onChange={(e) => setEditCategoryId(e.target.value)}
+                              className="mt-1 w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                            >
+                              <option value="">Select category</option>
+                              {(["income", "expense", "debt", "misc"] as const).map((group) => {
+                                const groupCats = categories.filter((c) => c.group_name === group);
+                                if (groupCats.length === 0) return null;
+                                return (
+                                  <optgroup
+                                    key={group}
+                                    label={group.charAt(0).toUpperCase() + group.slice(1)}
+                                  >
+                                    {groupCats.map((c) => (
+                                      <option key={c.id} value={c.id}>
+                                        {c.name}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                );
+                              })}
+                            </select>
                           </div>
-                        )}
-                      </div>
 
-                      {isEditing && editNeedsCard && (
-                        <div>
-                          <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                            Credit card
-                          </div>
-                          <select
-                            value={editCardId}
-                            onChange={(e) => setEditCardId(e.target.value)}
-                            className="mt-1 w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                          >
-                            <option value="">Select a card</option>
-                            {cards.map((cc) => (
-                              <option key={cc.id} value={cc.id}>
-                                {cc.name}
-                              </option>
-                            ))}
-                          </select>
+                          {editNeedsCard && (
+                            <div>
+                              <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                                Credit card
+                              </div>
+                              <select
+                                value={editCardId}
+                                onChange={(e) => setEditCardId(e.target.value)}
+                                className="mt-1 w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                              >
+                                <option value="">Select a card</option>
+                                {cards.map((cc) => (
+                                  <option key={cc.id} value={cc.id}>
+                                    {cc.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
                         </div>
-                      )}
-
-                      {!isEditing && (
-                        <div>
-                          <div className="text-xs text-zinc-600 dark:text-zinc-400">Card</div>
-                          <div className="mt-1 text-sm text-zinc-900 dark:text-zinc-100">
-                            {card?.name ?? "--"}
-                          </div>
+                      ) : (
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-600 dark:text-zinc-400">
+                          <span>{cat ? `${cat.group_name} - ${cat.name}` : "--"}</span>
+                          {card?.name ? (
+                            <>
+                              <span className="text-zinc-400">•</span>
+                              <span>{card.name}</span>
+                            </>
+                          ) : null}
                         </div>
                       )}
                     </div>

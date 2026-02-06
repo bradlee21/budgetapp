@@ -79,7 +79,7 @@ type BudgetRow = {
   planned: number;
   actual: number;
   remaining: number;
-  extra?: string;
+  extra?: ReactNode;
   editable?: boolean;
   indent?: number;
   orderableCategoryId?: string;
@@ -102,6 +102,43 @@ function Section({
         {header}
       </div>
       <div className="mt-4 overflow-x-hidden sm:overflow-x-auto">{children}</div>
+    </div>
+  );
+}
+
+function SectionTotals({
+  planned,
+  actual,
+  remaining,
+  actualLabel,
+  remainingLabel,
+}: {
+  planned: number;
+  actual: number;
+  remaining: number;
+  actualLabel: string;
+  remainingLabel: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-600 dark:text-zinc-400">
+      <span>
+        Planned{" "}
+        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+          {formatMoney(planned)}
+        </span>
+      </span>
+      <span>
+        {actualLabel}{" "}
+        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+          {formatMoney(actual)}
+        </span>
+      </span>
+      <span>
+        {remainingLabel}{" "}
+        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+          {formatMoney(remaining)}
+        </span>
+      </span>
     </div>
   );
 }
@@ -149,20 +186,6 @@ function BudgetTable({
             <div
               key={r.id}
               className="rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
-              draggable={!!r.orderableCategoryId}
-              onDragStart={
-                r.orderableCategoryId
-                  ? (e) => {
-                      setDragCategoryId(r.orderableCategoryId!);
-                      e.dataTransfer.setData(
-                        "text/plain",
-                        r.orderableCategoryId!
-                      );
-                      e.dataTransfer.effectAllowed = "move";
-                    }
-                  : undefined
-              }
-              onDragEnd={r.orderableCategoryId ? () => setDragCategoryId(null) : undefined}
               onDragOver={
                 r.orderableCategoryId
                   ? (e) => {
@@ -198,6 +221,13 @@ function BudgetTable({
                       type="button"
                       title="Drag to reorder"
                       aria-label="Drag to reorder"
+                      draggable
+                      onDragStart={(e) => {
+                        setDragCategoryId(r.orderableCategoryId!);
+                        e.dataTransfer.setData("text/plain", r.orderableCategoryId!);
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragEnd={() => setDragCategoryId(null)}
                       className="cursor-grab rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
                     >
                       ::
@@ -216,51 +246,56 @@ function BudgetTable({
                 </div>
               </div>
 
-              <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-zinc-600 dark:text-zinc-400">
-                <div>Planned</div>
-                <div className="text-right">{actualLabel}</div>
-                <div className="text-right">{remainingLabel}</div>
-              </div>
-              <div className="mt-1 grid grid-cols-3 gap-2 text-sm tabular-nums text-zinc-900 dark:text-zinc-100">
+              <div className="mt-3 grid grid-cols-2 gap-2 text-sm tabular-nums text-zinc-900 dark:text-zinc-100">
                 <div>
-                  {r.editable === false ? (
-                    formatMoney(r.planned)
-                  ) : editPlannedKey === r.id ? (
-                    <div className="grid gap-2">
-                      <input
-                        value={editPlannedAmount}
-                        onChange={(e) => setEditPlannedAmount(e.target.value)}
-                        inputMode="decimal"
-                        autoFocus
-                        className="w-full rounded-md border border-zinc-300 bg-white p-2 text-right text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                      />
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => onSavePlanned(r.id)}
-                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={onCancelPlanned}
-                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                        >
-                          Cancel
-                        </button>
+                  <div className="text-xs text-zinc-600 dark:text-zinc-400">Planned</div>
+                  <div className="mt-1">
+                    {r.editable === false ? (
+                      formatMoney(r.planned)
+                    ) : editPlannedKey === r.id ? (
+                      <div className="grid gap-2">
+                        <input
+                          value={editPlannedAmount}
+                          onChange={(e) => setEditPlannedAmount(e.target.value)}
+                          inputMode="decimal"
+                          autoFocus
+                          className="w-full rounded-md border border-zinc-300 bg-white p-2 text-right text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => onSavePlanned(r.id)}
+                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={onCancelPlanned}
+                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => onStartEditPlanned(r.id, r.planned)}
-                      className="rounded-md px-2 py-1 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
-                      title="Edit planned total"
-                    >
-                      {formatMoney(r.planned)}
-                    </button>
-                  )}
+                    ) : (
+                      <button
+                        onClick={() => onStartEditPlanned(r.id, r.planned)}
+                        className="rounded-md px-2 py-1 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 hover:underline dark:text-zinc-100 dark:hover:bg-zinc-800"
+                        title="Edit planned total"
+                      >
+                        {formatMoney(r.planned)}
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right">{formatMoney(r.actual)}</div>
-                <div className="text-right">{formatMoney(r.remaining)}</div>
+                <div className="text-right">
+                  <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                    {remainingLabel}
+                  </div>
+                  <div className="mt-1">{formatMoney(r.remaining)}</div>
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+                {actualLabel}: <span className="font-semibold">{formatMoney(r.actual)}</span>
               </div>
             </div>
           ))
@@ -273,9 +308,15 @@ function BudgetTable({
             <tr>
               <th className="p-2 text-left">Item</th>
               {showOrder && <th className="p-2 text-right">Order</th>}
-              <th className="p-2 text-right">{plannedLabel}</th>
-              <th className="p-2 text-right">{actualLabel}</th>
-              <th className="p-2 text-right">{remainingLabel}</th>
+              <th className="p-2 text-right font-semibold text-zinc-900 dark:text-zinc-100">
+                {plannedLabel}
+              </th>
+              <th className="p-2 text-right text-zinc-500 dark:text-zinc-400">
+                {actualLabel}
+              </th>
+              <th className="p-2 text-right text-zinc-500 dark:text-zinc-400">
+                {remainingLabel}
+              </th>
               {showDelete && <th className="p-2 text-right"></th>}
             </tr>
           </thead>
@@ -294,20 +335,6 @@ function BudgetTable({
                 <tr
                   key={r.id}
                   className="group border-t border-zinc-200 dark:border-zinc-800"
-                  draggable={!!r.orderableCategoryId}
-                  onDragStart={
-                    r.orderableCategoryId
-                      ? (e) => {
-                          setDragCategoryId(r.orderableCategoryId!);
-                          e.dataTransfer.setData(
-                            "text/plain",
-                            r.orderableCategoryId!
-                          );
-                          e.dataTransfer.effectAllowed = "move";
-                        }
-                      : undefined
-                  }
-                  onDragEnd={r.orderableCategoryId ? () => setDragCategoryId(null) : undefined}
                   onDragOver={
                     r.orderableCategoryId
                       ? (e) => {
@@ -351,7 +378,13 @@ function BudgetTable({
                             type="button"
                             title="Drag to reorder"
                             aria-label="Drag to reorder"
-                            onMouseDown={(e) => e.stopPropagation()}
+                            draggable
+                            onDragStart={(e) => {
+                              setDragCategoryId(r.orderableCategoryId!);
+                              e.dataTransfer.setData("text/plain", r.orderableCategoryId!);
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onDragEnd={() => setDragCategoryId(null)}
                             className="cursor-grab rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 opacity-0 transition-opacity hover:bg-zinc-100 group-hover:opacity-100 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
                           >
                             ::
@@ -437,6 +470,7 @@ export default function BudgetPage() {
   const [mobileTab, setMobileTab] = useState<"budget" | "transactions">("budget");
 
   const [showDebug, setShowDebug] = useState(false);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
 
   const [userId, setUserId] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -504,13 +538,14 @@ export default function BudgetPage() {
   const [addSavingsOpen, setAddSavingsOpen] = useState(false);
   const [addExpenseGroupOpen, setAddExpenseGroupOpen] = useState(false);
   const [addChildOpenId, setAddChildOpenId] = useState<string | null>(null);
-  const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
+  const [mobileInsightsOpen, setMobileInsightsOpen] = useState(false);
   const [confirmState, setConfirmState] = useState<{
     open: boolean;
     title: string;
     body: string;
   }>({ open: false, title: "", body: "" });
   const confirmActionRef = useRef<null | (() => Promise<void>)>(null);
+  const seedDefaultsPromiseRef = useRef<Promise<Category[]> | null>(null);
 
   const monthKey = useMemo(() => {
     const d = addMonths(new Date(), monthOffset);
@@ -731,6 +766,48 @@ export default function BudgetPage() {
     return ([...(parentData ?? []), ...(childData ?? [])] as Category[]);
   }
 
+  function isDuplicateCategoryError(err: any) {
+    const msg = String(err?.message ?? err ?? "");
+    return (
+      err?.code === "23505" ||
+      msg.includes("categories_unique_user_group_parent_lowername") ||
+      msg.includes("duplicate key value")
+    );
+  }
+
+  async function fetchActiveCategories() {
+    const { data, error } = await supabase
+      .from("categories")
+      .select("id, group_name, name, parent_id, sort_order, is_archived")
+      .eq("is_archived", false)
+      .order("group_name", { ascending: true })
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
+
+    if (error) throw error;
+    return (data ?? []) as Category[];
+  }
+
+  async function ensureSeeded(seedUserId: string) {
+    if (seedDefaultsPromiseRef.current) {
+      return seedDefaultsPromiseRef.current;
+    }
+    const run = (async () => {
+      try {
+        return await seedDefaultCategories(seedUserId);
+      } catch (e: any) {
+        if (isDuplicateCategoryError(e)) {
+          return await fetchActiveCategories();
+        }
+        throw e;
+      } finally {
+        seedDefaultsPromiseRef.current = null;
+      }
+    })();
+    seedDefaultsPromiseRef.current = run;
+    return run;
+  }
+
   async function loadAll() {
     setMsg("");
     setLoading(true);
@@ -739,18 +816,9 @@ export default function BudgetPage() {
       if (!u.user) return;
       setUserId(u.user.id);
 
-      const { data: cats, error: catErr } = await supabase
-        .from("categories")
-        .select("id, group_name, name, parent_id, sort_order, is_archived")
-        .eq("is_archived", false)
-        .order("group_name", { ascending: true })
-        .order("sort_order", { ascending: true })
-        .order("name", { ascending: true });
-
-      if (catErr) throw catErr;
-      let nextCats = (cats ?? []) as Category[];
+      let nextCats = await fetchActiveCategories();
       if (nextCats.length === 0) {
-        nextCats = await seedDefaultCategories(u.user.id);
+        nextCats = await ensureSeeded(u.user.id);
       }
       setCategories(nextCats);
 
@@ -1991,6 +2059,18 @@ export default function BudgetPage() {
     return { groups, ungrouped };
   }
 
+  function totalsForRows(rows: BudgetRow[]) {
+    return rows.reduce(
+      (acc, r) => {
+        acc.planned += r.planned;
+        acc.actual += r.actual;
+        acc.remaining += r.remaining;
+        return acc;
+      },
+      { planned: 0, actual: 0, remaining: 0 }
+    );
+  }
+
   function rowForCategory(catId: string) {
     const key = `${catId}::none`;
     const planned = plannedMap.get(key) ?? 0;
@@ -2012,6 +2092,18 @@ export default function BudgetPage() {
   const givingRows = buildFlatRows(givingCats);
   const savingsRows = buildFlatRows(savingsCats);
   const expenseGrouped = buildCategoryGroups(expenseCats);
+  const incomeTotals = totalsForRows(incomeRows);
+  const givingTotals = totalsForRows(givingRows);
+  const savingsTotals = totalsForRows(savingsRows);
+  const expenseTotals = expenseGrouped.groups.reduce(
+    (acc, g) => {
+      acc.planned += g.totals.planned;
+      acc.actual += g.totals.actual;
+      acc.remaining += g.totals.remaining;
+      return acc;
+    },
+    { planned: 0, actual: 0, remaining: 0 }
+  );
 
   // Debt:
   // - per-card credit card payments (bucketed from ANY "credit card*" debt category)
@@ -2036,13 +2128,19 @@ export default function BudgetPage() {
       return {
         id: key,
         label: d.name,
-        extra: `Type: ${debtTypeLabel(d.debt_type)} | Balance: ${formatMoney(
-          d.balance
-        )} | Min ${
-          d.min_payment === null ? "--" : formatMoney(d.min_payment)
-        } | Paid ${formatMoney(actual)} | Remaining ${formatMoney(remaining)} | APR ${
-          d.apr === null ? "--" : `${d.apr}%`
-        } | Due ${d.due_date ?? "--"}`,
+        extra: (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+              {debtTypeLabel(d.debt_type)}
+            </span>
+            <span>Balance {formatMoney(d.balance)}</span>
+            <span>Min {d.min_payment === null ? "--" : formatMoney(d.min_payment)}</span>
+            <span>Paid {formatMoney(actual)}</span>
+            <span>Remaining {formatMoney(remaining)}</span>
+            <span>APR {d.apr === null ? "--" : `${d.apr}%`}</span>
+            <span>Due {d.due_date ?? "--"}</span>
+          </div>
+        ),
         planned,
         actual,
         remaining,
@@ -2053,6 +2151,7 @@ export default function BudgetPage() {
       };
     }),
   ];
+  const debtTotals = totalsForRows(debtRows);
 
 
   const ccCategoryLabel = useMemo(() => {
@@ -2076,47 +2175,71 @@ export default function BudgetPage() {
   return (
     <AuthGate>
       <main className="mx-auto mt-6 w-full max-w-6xl px-4 sm:mt-10 sm:px-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-baseline gap-2">
             <h1 className="text-3xl font-bold">Budget</h1>
-            <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
-              {monthLabel}
-            </p>
+            <span className="text-sm text-zinc-600 dark:text-zinc-300">
+              | {monthLabel}
+            </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="text-sm text-zinc-700 dark:text-zinc-300">
-              Month:
-              <select
-                value={monthOffset}
-                onChange={(e) => setMonthOffset(Number(e.target.value))}
-                className="ml-2 rounded-md border border-zinc-300 bg-white px-2 py-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-              >
-                <option value={0}>This month</option>
-                <option value={-1}>Last month</option>
-              </select>
-            </label>
-
+          <div className="relative">
             <button
-              onClick={loadAll}
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+              onClick={() => setHeaderMenuOpen((v) => !v)}
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+              aria-label="Open menu"
             >
-              {loading ? "Refreshing..." : "Refresh"}
+              ...
             </button>
 
-            <button
-              onClick={() => setShowDebug((v) => !v)}
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
-            >
-              Debug: {showDebug ? "On" : "Off"}
-            </button>
+            {headerMenuOpen && (
+              <div className="absolute right-0 mt-2 w-56 rounded-lg border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+                <label className="grid gap-1 p-2 text-xs text-zinc-600 dark:text-zinc-300">
+                  Month
+                  <select
+                    value={monthOffset}
+                    onChange={(e) => {
+                      setMonthOffset(Number(e.target.value));
+                      setHeaderMenuOpen(false);
+                    }}
+                    className="rounded-md border border-zinc-300 bg-white px-2 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                  >
+                    <option value={0}>This month</option>
+                    <option value={-1}>Last month</option>
+                  </select>
+                </label>
 
-            <button
-              onClick={signOutUser}
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
-            >
-              Log out
-            </button>
+                <div className="mt-2 grid gap-1 border-t border-zinc-200 pt-2 dark:border-zinc-800">
+                  <button
+                    onClick={() => {
+                      loadAll();
+                      setHeaderMenuOpen(false);
+                    }}
+                    className="rounded-md px-2 py-2 text-left text-sm text-zinc-900 hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                  >
+                    {loading ? "Refreshing..." : "Refresh"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDebug((v) => !v);
+                      setHeaderMenuOpen(false);
+                    }}
+                    className="rounded-md px-2 py-2 text-left text-sm text-zinc-900 hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                  >
+                    Debug: {showDebug ? "On" : "Off"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      signOutUser();
+                      setHeaderMenuOpen(false);
+                    }}
+                    className="rounded-md px-2 py-2 text-left text-sm text-zinc-900 hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                  >
+                    Log out
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -2311,54 +2434,53 @@ export default function BudgetPage() {
           </aside>
 
           <div className={mobileTab === "budget" ? "" : "hidden lg:block"}>
-            <div className="mb-4 lg:hidden">
+            <div className="mb-4 space-y-3 lg:hidden">
+              <div className="grid gap-3">
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                  <div className="text-sm text-zinc-700 dark:text-zinc-300">Left to budget</div>
+                  <div className="mt-2 text-2xl font-semibold">
+                    {formatMoney(leftToBudget)}
+                  </div>
+                  <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                    Rollover start + planned income - planned outflows
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                  <div className="text-sm text-zinc-700 dark:text-zinc-300">Actual</div>
+                  <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
+                    Income:{" "}
+                    <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                      {formatMoney(actualIncome)}
+                    </span>
+                  </div>
+                  <div className="text-sm text-zinc-700 dark:text-zinc-300">
+                    Outflow:{" "}
+                    <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                      {formatMoney(actualOut)}
+                    </span>
+                  </div>
+                  <div className="text-sm text-zinc-700 dark:text-zinc-300">
+                    Net:{" "}
+                    <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                      {formatMoney(actualNet)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               <button
-                onClick={() => setMobileSummaryOpen((prev) => !prev)}
+                onClick={() => setMobileInsightsOpen((prev) => !prev)}
                 className="flex w-full items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
               >
-                <span className="font-semibold">Summary</span>
+                <span className="font-semibold">Insights</span>
                 <span className="text-xs text-zinc-600 dark:text-zinc-400">
-                  {mobileSummaryOpen ? "Hide" : "Show"}
+                  {mobileInsightsOpen ? "Hide" : "Show"}
                 </span>
               </button>
-              {mobileSummaryOpen && (
-                <div className="mt-3 space-y-3">
-                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                    <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                      Left to budget
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold">
-                      {formatMoney(leftToBudget)}
-                    </div>
-                    <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                      Rollover start + planned income - planned outflows
-                    </div>
-                  </div>
 
-                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                    <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                      Actual
-                    </div>
-                    <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-                      Income:{" "}
-                      <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                        {formatMoney(actualIncome)}
-                      </span>
-                    </div>
-                    <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                      Outflow:{" "}
-                      <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                        {formatMoney(actualOut)}
-                      </span>
-                    </div>
-                    <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                      Net:{" "}
-                      <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                        {formatMoney(actualNet)}
-                      </span>
-                    </div>
-                  </div>
-
+              {mobileInsightsOpen && (
+                <div className="space-y-3">
                   <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
                     <div className="text-sm text-zinc-700 dark:text-zinc-300">
                       Rollover
@@ -2402,33 +2524,32 @@ export default function BudgetPage() {
                     <div className="text-sm text-zinc-700 dark:text-zinc-300">
                       Debt insight
                     </div>
-                      <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-                        Total card balance:{" "}
-                        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                          {formatMoney(cardLikeAccounts.reduce((s, c) => s + c.balance, 0))}
-                        </span>
-                      </div>
+                    <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
+                      Total card balance:{" "}
+                      <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                        {formatMoney(cardLikeAccounts.reduce((s, c) => s + c.balance, 0))}
+                      </span>
+                    </div>
                     <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
                       Payments this month: {formatMoney(debtPaymentsThisMonth)}
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                    <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                      Install app
-                    </div>
-                    <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
-                      iOS: Safari -&gt; Share -&gt; Add to Home Screen.
-                    </div>
-                    <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                      Android/desktop: use your browser's Install option.
                     </div>
                   </div>
                 </div>
               )}
             </div>
 
-            <Section title="Income">
+            <Section
+              title="Income"
+              header={
+                <SectionTotals
+                  planned={incomeTotals.planned}
+                  actual={incomeTotals.actual}
+                  remaining={incomeTotals.remaining}
+                  actualLabel="Received"
+                  remainingLabel="Difference"
+                />
+              }
+            >
               <BudgetTable
                 rows={incomeRows}
                 onDrop={onDropCategory}
@@ -2489,7 +2610,18 @@ export default function BudgetPage() {
               </div>
             </Section>
 
-            <Section title="Giving">
+            <Section
+              title="Giving"
+              header={
+                <SectionTotals
+                  planned={givingTotals.planned}
+                  actual={givingTotals.actual}
+                  remaining={givingTotals.remaining}
+                  actualLabel="Spent"
+                  remainingLabel="Remaining"
+                />
+              }
+            >
               <BudgetTable
                 rows={givingRows}
                 onDrop={onDropCategory}
@@ -2550,7 +2682,18 @@ export default function BudgetPage() {
               </div>
             </Section>
 
-            <Section title="Savings">
+            <Section
+              title="Savings"
+              header={
+                <SectionTotals
+                  planned={savingsTotals.planned}
+                  actual={savingsTotals.actual}
+                  remaining={savingsTotals.remaining}
+                  actualLabel="Received"
+                  remainingLabel="Difference"
+                />
+              }
+            >
               <BudgetTable
                 rows={savingsRows}
                 onDrop={onDropCategory}
@@ -2611,7 +2754,18 @@ export default function BudgetPage() {
               </div>
             </Section>
 
-            <Section title="Expenses">
+            <Section
+              title="Expenses"
+              header={
+                <SectionTotals
+                  planned={expenseTotals.planned}
+                  actual={expenseTotals.actual}
+                  remaining={expenseTotals.remaining}
+                  actualLabel="Spent"
+                  remainingLabel="Remaining"
+                />
+              }
+            >
               <div className="grid gap-4">
                 {expenseGrouped.groups.map((group) => (
                   <div
@@ -2778,9 +2932,13 @@ export default function BudgetPage() {
             <Section
               title="Debt"
               header={
-                <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                  Debt rows are sourced from your debt accounts (right panel).
-                </div>
+                <SectionTotals
+                  planned={debtTotals.planned}
+                  actual={debtTotals.actual}
+                  remaining={debtTotals.remaining}
+                  actualLabel="Paid"
+                  remainingLabel="Remaining"
+                />
               }
             >
               <BudgetTable
