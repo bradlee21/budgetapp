@@ -1,7 +1,7 @@
 {
-  "name": "Budget App",
-  "short_name": "Budget",
-  "description": "Simple budgeting app",
+  "name": "NextStep",
+  "short_name": "NextStep",
+  "description": "NextStep budgeting app",
   "start_url": "/budget",
   "display": "standalone",
   "background_color": "#0f172a",

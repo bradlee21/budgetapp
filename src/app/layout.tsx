@@ -3,13 +3,13 @@ import type { Metadata, Viewport } from "next";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 export const metadata: Metadata = {
-  title: "Budget App",
-  description: "Simple budgeting app",
-  applicationName: "Budget App",
+  title: "NextStep",
+  description: "NextStep budgeting app",
+  applicationName: "NextStep",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Budget App",
+    title: "NextStep",
     statusBarStyle: "default",
   },
   icons: {
