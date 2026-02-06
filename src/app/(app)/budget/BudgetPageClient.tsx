@@ -3178,6 +3178,10 @@ export default function BudgetPage() {
                       onTouchEnd={endGroupTouchDrag}
                       onTouchCancel={endGroupTouchDrag}
                       onDragStart={(e) => {
+                        if (typeof window !== "undefined" && window.innerWidth < 768) {
+                          e.preventDefault();
+                          return;
+                        }
                         setDragCategoryId(group.id);
                         e.dataTransfer.setData("text/plain", group.id);
                         e.dataTransfer.effectAllowed = "move";
