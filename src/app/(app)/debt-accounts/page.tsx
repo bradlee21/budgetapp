@@ -134,6 +134,8 @@ export default function DebtAccountsPage() {
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>([]);
+  const addFormRef = useRef<HTMLDivElement | null>(null);
+  const addNameRef = useRef<HTMLInputElement | null>(null);
 
   const [debtType, setDebtType] = useState<DebtAccount["debt_type"]>("credit_card");
   const [debtName, setDebtName] = useState("");
@@ -350,6 +352,15 @@ export default function DebtAccountsPage() {
     }
   }
 
+  function focusAddDebt() {
+    if (addFormRef.current) {
+      addFormRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    setTimeout(() => {
+      addNameRef.current?.focus();
+    }, 200);
+  }
+
   return (
     <AuthGate>
       <main className="mx-auto mt-8 w-full max-w-4xl overflow-x-hidden px-4 sm:mt-10 sm:px-6">
@@ -398,7 +409,10 @@ export default function DebtAccountsPage() {
           </div>
         )}
 
-        <section className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <section
+          ref={addFormRef}
+          className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900"
+        >
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Add debt</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1">
@@ -419,6 +433,7 @@ export default function DebtAccountsPage() {
             <label className="grid gap-1">
               <span className="text-sm text-zinc-700 dark:text-zinc-300">Name</span>
               <input
+                ref={addNameRef}
                 value={debtName}
                 onChange={(e) => setDebtName(e.target.value)}
                 placeholder="Car loan, Student loan..."
@@ -495,7 +510,13 @@ export default function DebtAccountsPage() {
         <section className="mt-6 space-y-3">
           {debtAccounts.length === 0 ? (
             <div className="rounded-md border border-zinc-200 bg-white p-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-              No debt accounts yet.
+              <div>No debt accounts yet.</div>
+              <button
+                onClick={focusAddDebt}
+                className="mt-2 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+              >
+                Add debt
+              </button>
             </div>
           ) : (
             debtAccounts.map((d) => (

@@ -65,6 +65,43 @@ type Txn = {
   date: string;
 };
 
+const TXN_FORM_STORAGE_KEY = "budgetapp.txnForm";
+
+function saveTxnFormDefaults(data: {
+  categoryId: string;
+  cardSelectId: string;
+  debtAccountId: string;
+}) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(TXN_FORM_STORAGE_KEY, JSON.stringify(data));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function loadTxnFormDefaults() {
+  if (typeof window === "undefined") return null as null | {
+    categoryId: string;
+    cardSelectId: string;
+    debtAccountId: string;
+  };
+  try {
+    const raw = localStorage.getItem(TXN_FORM_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return {
+      categoryId: typeof parsed.categoryId === "string" ? parsed.categoryId : "",
+      cardSelectId: typeof parsed.cardSelectId === "string" ? parsed.cardSelectId : "",
+      debtAccountId:
+        typeof parsed.debtAccountId === "string" ? parsed.debtAccountId : "",
+    };
+  } catch {
+    return null;
+  }
+}
+
 type BudgetMonth = {
   id: string;
   user_id: string;
@@ -106,6 +143,10 @@ function Section({
   );
 }
 
+function remainingColorClass(value: number) {
+  return value < 0 ? "text-rose-600 dark:text-rose-400" : "";
+}
+
 function SectionTotals({
   planned,
   actual,
@@ -135,7 +176,13 @@ function SectionTotals({
       </span>
       <span>
         {remainingLabel}{" "}
-        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+        <span
+          className={`font-semibold ${
+            remaining < 0
+              ? "text-rose-600 dark:text-rose-400"
+              : "text-zinc-900 dark:text-zinc-100"
+          }`}
+        >
           {formatMoney(remaining)}
         </span>
       </span>
@@ -422,7 +469,9 @@ function BudgetTable({
                   <div className="text-xs text-zinc-600 dark:text-zinc-400">
                     {remainingLabel}
                   </div>
-                  <div className="mt-1">{formatMoney(r.remaining)}</div>
+                  <div className={`mt-1 ${remainingColorClass(r.remaining)}`}>
+                    {formatMoney(r.remaining)}
+                  </div>
                 </div>
               </div>
               <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
@@ -610,7 +659,9 @@ function BudgetTable({
                     {formatMoney(r.actual)}
                   </td>
                   <td className="p-2 text-right tabular-nums">
-                    {formatMoney(r.remaining)}
+                    <span className={remainingColorClass(r.remaining)}>
+                      {formatMoney(r.remaining)}
+                    </span>
                   </td>
                 </tr>
               ))
@@ -849,6 +900,14 @@ export default function BudgetPage() {
   useEffect(() => {
     if (!editTxnNeedsCard) setEditTxnCardSelectId("");
   }, [editTxnNeedsCard]);
+
+  useEffect(() => {
+    const defaults = loadTxnFormDefaults();
+    if (!defaults) return;
+    if (defaults.categoryId) setTxnCategoryId(defaults.categoryId);
+    if (defaults.cardSelectId) setTxnCardSelectId(defaults.cardSelectId);
+    if (defaults.debtAccountId) setTxnDebtAccountId(defaults.debtAccountId);
+  }, []);
 
   async function seedDefaultCategories(seedUserId: string) {
     const flatDefaults: Array<{ group: Category["group_name"]; names: string[] }> =
@@ -2023,6 +2082,12 @@ export default function BudgetPage() {
         await adjustDebtBalance(cardSelection.id, -amt);
       }
 
+      saveTxnFormDefaults({
+        categoryId: txnCategoryId,
+        cardSelectId: txnCardSelectId,
+        debtAccountId: txnDebtAccountId,
+      });
+
       setTxnAmount("");
       setTxnCardSelectId("");
       setTxnDateError("");
@@ -2469,7 +2534,9 @@ export default function BudgetPage() {
             <span>Balance {formatMoney(d.balance)}</span>
             <span>Min {d.min_payment === null ? "--" : formatMoney(d.min_payment)}</span>
             <span>Paid {formatMoney(actual)}</span>
-            <span>Remaining {formatMoney(remaining)}</span>
+            <span className={remainingColorClass(remaining)}>
+              Remaining {formatMoney(remaining)}
+            </span>
             <span>APR {d.apr === null ? "--" : `${d.apr}%`}</span>
             <span>Due {d.due_date ?? "--"}</span>
           </div>
@@ -3175,9 +3242,11 @@ export default function BudgetPage() {
                         )}
                       </div>
                       <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                        Planned {formatMoney(group.totals.planned)} - Spent{" "}
-                        {formatMoney(group.totals.actual)} - Remaining{" "}
+                      Planned {formatMoney(group.totals.planned)} - Spent{" "}
+                      {formatMoney(group.totals.actual)} - Remaining{" "}
+                      <span className={remainingColorClass(group.totals.remaining)}>
                         {formatMoney(group.totals.remaining)}
+                      </span>
                       </div>
                     </div>
                     <div className="mt-3">

@@ -41,6 +41,43 @@ type Txn = {
   debt_account_id: string | null;
 };
 
+const TXN_FORM_STORAGE_KEY = "budgetapp.txnForm";
+
+function saveTxnFormDefaults(data: {
+  categoryId: string;
+  cardSelectId: string;
+  debtAccountId: string;
+}) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(TXN_FORM_STORAGE_KEY, JSON.stringify(data));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function loadTxnFormDefaults() {
+  if (typeof window === "undefined") return null as null | {
+    categoryId: string;
+    cardSelectId: string;
+    debtAccountId: string;
+  };
+  try {
+    const raw = localStorage.getItem(TXN_FORM_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return {
+      categoryId: typeof parsed.categoryId === "string" ? parsed.categoryId : "",
+      cardSelectId: typeof parsed.cardSelectId === "string" ? parsed.cardSelectId : "",
+      debtAccountId:
+        typeof parsed.debtAccountId === "string" ? parsed.debtAccountId : "",
+    };
+  } catch {
+    return null;
+  }
+}
+
 function sortCategories(list: Category[]) {
   return list
     .slice()
@@ -182,6 +219,8 @@ export default function TransactionsPage() {
   const [editCardSelectId, setEditCardSelectId] = useState("");
   const [editDebtAccountId, setEditDebtAccountId] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const addFormRef = useRef<HTMLDivElement | null>(null);
+  const addDateRef = useRef<HTMLInputElement | null>(null);
 
   const start = useMemo(() => {
     const d = addMonths(new Date(), monthOffset);
@@ -281,6 +320,23 @@ export default function TransactionsPage() {
   useEffect(() => {
     if (!editNeedsDebtAccount) setEditDebtAccountId("");
   }, [editNeedsDebtAccount]);
+
+  useEffect(() => {
+    const defaults = loadTxnFormDefaults();
+    if (!defaults) return;
+    if (defaults.categoryId) setCategoryId(defaults.categoryId);
+    if (defaults.cardSelectId) setCardSelectId(defaults.cardSelectId);
+    if (defaults.debtAccountId) setDebtAccountId(defaults.debtAccountId);
+  }, []);
+
+  function focusAddForm() {
+    if (addFormRef.current) {
+      addFormRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    setTimeout(() => {
+      addDateRef.current?.focus();
+    }, 200);
+  }
 
   function parseCardSelectId(value: string) {
     if (!value) return null;
@@ -478,6 +534,12 @@ export default function TransactionsPage() {
       } else if (needsDebtAccount) {
         await adjustDebtBalance(debtAccountId, -amt);
       }
+
+      saveTxnFormDefaults({
+        categoryId,
+        cardSelectId,
+        debtAccountId,
+      });
 
       setAmount("");
       setDescription("");
@@ -794,7 +856,10 @@ export default function TransactionsPage() {
         )}
 
         {/* Add transaction */}
-        <section className="mt-8 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <section
+          ref={addFormRef}
+          className="mt-8 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900"
+        >
           <h2 className="text-lg font-semibold">Add transaction</h2>
 
           <div className="mt-4 flex flex-wrap items-end gap-3">
@@ -802,6 +867,7 @@ export default function TransactionsPage() {
             <label className="grid w-full gap-1 sm:w-auto">
               <span className="text-sm text-zinc-700 dark:text-zinc-300">Date</span>
               <input
+                ref={addDateRef}
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
@@ -926,7 +992,13 @@ export default function TransactionsPage() {
           <div className="space-y-3 md:hidden">
             {txns.length === 0 ? (
               <div className="rounded-md border border-zinc-200 bg-white p-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-                No transactions this month.
+                <div>No transactions this month.</div>
+                <button
+                  onClick={focusAddForm}
+                  className="mt-2 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                >
+                  Add transaction
+                </button>
               </div>
             ) : (
               txns.map((t) => {
@@ -1137,7 +1209,13 @@ export default function TransactionsPage() {
                 {txns.length === 0 ? (
                   <tr>
                     <td className="p-3 text-zinc-600 dark:text-zinc-300" colSpan={6}>
-                      No transactions this month.
+                      <div>No transactions this month.</div>
+                      <button
+                        onClick={focusAddForm}
+                        className="mt-2 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                      >
+                        Add transaction
+                      </button>
                     </td>
                   </tr>
                 ) : (
