@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { writeAuthCookie } from "@/lib/authCookies";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -12,10 +13,15 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     let mounted = true;
 
     (async () => {
-      const { data } = await supabase.auth.getUser();
+      const [{ data: userData }, { data: sessionData }] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase.auth.getSession(),
+      ]);
       if (!mounted) return;
 
-      if (!data.user) {
+      writeAuthCookie(sessionData.session ?? null);
+
+      if (!userData.user) {
         router.replace("/login");
         return;
       }

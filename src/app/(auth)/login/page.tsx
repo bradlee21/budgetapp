@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
+import { writeAuthCookie } from "@/lib/authCookies";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -26,7 +27,10 @@ export default function LoginPage() {
         setMsg("Supabase env vars are missing. Check .env.local and restart npm run dev.");
         return;
       }
-      const { data, error } = await supabase.auth.getUser();
+      const [{ data, error }, { data: sessionData }] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase.auth.getSession(),
+      ]);
 
       // "Auth session missing!" just means not logged in yet.
       // Don't display it as an error.
@@ -34,10 +38,12 @@ export default function LoginPage() {
         setMsg(error.message);
       }
 
+      writeAuthCookie(sessionData.session ?? null);
       setUser(data.user ?? null);
 
       supabase.auth.onAuthStateChange((_event, session) => {
         setUser(session?.user ?? null);
+        writeAuthCookie(session ?? null);
       });
     })();
   }, []);

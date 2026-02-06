@@ -2,6 +2,7 @@
 
 import AuthGate from "@/components/AuthGate";
 import { supabase } from "@/lib/supabaseClient";
+import { writeAuthCookie } from "@/lib/authCookies";
 import {
   addMonths,
   firstDayOfMonth,
@@ -2565,6 +2566,7 @@ export default function BudgetPage() {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      writeAuthCookie(null);
       router.replace("/login");
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
