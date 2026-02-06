@@ -12,21 +12,28 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState<string>("");
 
+  async function hydrateSession() {
+    const res = await fetch("/api/auth/session", {
+      cache: "no-store",
+      credentials: "include",
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    const session = data?.session;
+    if (session?.access_token && session?.refresh_token) {
+      await supabase.auth.setSession({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      });
+      setUser(session.user ?? null);
+      return true;
+    }
+    return false;
+  }
+
   useEffect(() => {
     (async () => {
-      const res = await fetch("/api/auth/session", { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        const session = data?.session;
-        if (session?.access_token && session?.refresh_token) {
-          await supabase.auth.setSession({
-            access_token: session.access_token,
-            refresh_token: session.refresh_token,
-          });
-          setUser(session.user ?? null);
-          return;
-        }
-      }
+      await hydrateSession();
     })();
   }, []);
 
@@ -43,10 +50,16 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/sign-up", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
       if (!res.ok || data?.error) throw new Error(data?.error ?? "Sign-up failed.");
+      const hydrated = await hydrateSession();
+      if (hydrated) {
+        router.replace("/budget");
+        return;
+      }
       setMsg("Sign-up successful. If email confirmation is ON, check your inbox.");
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
@@ -60,20 +73,17 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/sign-in", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
       if (!res.ok || data?.error) throw new Error(data?.error ?? "Sign-in failed.");
-      const sessionRes = await fetch("/api/auth/session", { cache: "no-store" });
-      const sessionData = await sessionRes.json();
-      const session = sessionData?.session;
-      if (session?.access_token && session?.refresh_token) {
-        await supabase.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        });
+      const hydrated = await hydrateSession();
+      if (hydrated) {
+        router.replace("/budget");
+        return;
       }
-      setMsg("Signed in.");
+      router.replace("/budget");
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
     }
