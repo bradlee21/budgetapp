@@ -133,12 +133,12 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <div className="mt-8 rounded-lg border brand-border brand-panel p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="mt-6 rounded-lg border brand-border brand-panel p-3 sm:mt-8 sm:p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
         <div className="text-lg font-semibold brand-text">{title}</div>
         {header}
       </div>
-      <div className="mt-4 overflow-x-hidden sm:overflow-x-auto">{children}</div>
+      <div className="mt-3 overflow-x-hidden sm:mt-4 sm:overflow-x-auto">{children}</div>
     </div>
   );
 }
@@ -320,9 +320,9 @@ function BudgetTable({
   const showOrder = rows.some((r) => r.orderableCategoryId);
   return (
     <>
-      <div className="space-y-3 sm:hidden">
+      <div className="space-y-2 sm:hidden">
         {rows.length === 0 ? (
-          <div className="rounded-md border border-zinc-200 bg-white p-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
+          <div className="rounded-md border border-zinc-200 bg-white p-2 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 sm:p-3">
             Nothing here yet.
           </div>
         ) : (
@@ -334,7 +334,7 @@ function BudgetTable({
               deleteLabel="Delete"
             >
               <div
-                className="rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
+                className="rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950 sm:p-3"
                 onDragOver={
                   r.orderableCategoryId
                     ? (e) => {
@@ -424,7 +424,7 @@ function BudgetTable({
                 </div>
               </div>
 
-              <div className="mt-3 grid grid-cols-2 gap-2 text-sm tabular-nums text-zinc-900 dark:text-zinc-100">
+              <div className="mt-2 grid grid-cols-2 gap-2 text-sm tabular-nums text-zinc-900 dark:text-zinc-100 sm:mt-3">
                 <div>
                   <div className="text-xs text-zinc-600 dark:text-zinc-400">Planned</div>
                   <div className="mt-1">
@@ -474,7 +474,7 @@ function BudgetTable({
                   </div>
                 </div>
               </div>
-              <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+              <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400 sm:mt-2">
                 {actualLabel}: <span className="font-semibold">{formatMoney(r.actual)}</span>
               </div>
               </div>
@@ -2791,7 +2791,7 @@ export default function BudgetPage() {
                 actualLabel="Received"
                 remainingLabel="Difference"
               />
-              <div className="mt-3 flex flex-wrap items-end gap-2">
+              <div className="mt-2 flex flex-wrap items-end gap-2 sm:mt-3">
                 {addIncomeOpen ? (
                   <>
                     <input
@@ -2869,7 +2869,7 @@ export default function BudgetPage() {
                 actualLabel="Spent"
                 remainingLabel="Remaining"
               />
-              <div className="mt-3 flex flex-wrap items-end gap-2">
+              <div className="mt-2 flex flex-wrap items-end gap-2 sm:mt-3">
                 {addGivingOpen ? (
                   <>
                     <input
@@ -2947,7 +2947,7 @@ export default function BudgetPage() {
                 actualLabel="Received"
                 remainingLabel="Difference"
               />
-              <div className="mt-3 flex flex-wrap items-end gap-2">
+              <div className="mt-2 flex flex-wrap items-end gap-2 sm:mt-3">
                 {addSavingsOpen ? (
                   <>
                     <input
@@ -3004,7 +3004,7 @@ export default function BudgetPage() {
                 />
               }
             >
-              <div className="grid gap-4">
+              <div className="grid gap-3 sm:gap-4">
                 {expenseGrouped.groups.map((group) => (
                   <SwipeRow
                     key={group.id}
@@ -3013,7 +3013,7 @@ export default function BudgetPage() {
                     deleteLabel="Delete group"
                   >
                     <div
-                      className="rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
+                      className="rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950 sm:p-3"
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -3027,7 +3027,7 @@ export default function BudgetPage() {
                       }}
                     >
                     <div
-                      className="flex flex-wrap items-center justify-between gap-3"
+                      className="flex flex-wrap items-center justify-between gap-2 sm:gap-3"
                       onContextMenu={(e) => {
                         e.preventDefault();
                         removeCategory(group.id);
@@ -3092,7 +3092,7 @@ export default function BudgetPage() {
                       </span>
                       </div>
                     </div>
-                    <div className="mt-3">
+                    <div className="mt-2 sm:mt-3">
                       <BudgetTable
                         rows={group.rows}
                         onDrop={onDropCategory}
@@ -3115,7 +3115,7 @@ export default function BudgetPage() {
                         remainingLabel="Remaining"
                       />
                   </div>
-                  <div className="mt-3 flex flex-wrap items-end gap-2">
+                  <div className="mt-2 flex flex-wrap items-end gap-2 sm:mt-3">
                     {addChildOpenId === group.id ? (
                       <>
                         <input
@@ -3165,7 +3165,7 @@ export default function BudgetPage() {
                   </SwipeRow>
                 ))}
             </div>
-              <div className="mt-4 flex flex-wrap items-end gap-2">
+              <div className="mt-3 flex flex-wrap items-end gap-2 sm:mt-4">
                 {addExpenseGroupOpen ? (
                   <>
                     <input
