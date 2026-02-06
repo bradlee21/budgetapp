@@ -327,6 +327,24 @@ function BudgetTable({
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const [touchDraggingId, setTouchDraggingId] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!touchDraggingId) return;
+    const handleMove = (e: TouchEvent) => {
+      moveTouchDrag(e);
+    };
+    const handleEnd = () => {
+      endTouchDrag();
+    };
+    document.addEventListener("touchmove", handleMove as any, { passive: false });
+    document.addEventListener("touchend", handleEnd as any);
+    document.addEventListener("touchcancel", handleEnd as any);
+    return () => {
+      document.removeEventListener("touchmove", handleMove as any);
+      document.removeEventListener("touchend", handleEnd as any);
+      document.removeEventListener("touchcancel", handleEnd as any);
+    };
+  }, [touchDraggingId]);
+
   function clearTouchDragTimer() {
     if (touchDragTimerRef.current) {
       window.clearTimeout(touchDragTimerRef.current);
@@ -1851,6 +1869,24 @@ export default function BudgetPage() {
     groupTouchStartRef.current = null;
     setGroupTouchDraggingId(null);
   }
+
+  useEffect(() => {
+    if (!groupTouchDraggingId) return;
+    const handleMove = (e: TouchEvent) => {
+      moveGroupTouchDrag(e);
+    };
+    const handleEnd = () => {
+      endGroupTouchDrag();
+    };
+    document.addEventListener("touchmove", handleMove as any, { passive: false });
+    document.addEventListener("touchend", handleEnd as any);
+    document.addEventListener("touchcancel", handleEnd as any);
+    return () => {
+      document.removeEventListener("touchmove", handleMove as any);
+      document.removeEventListener("touchend", handleEnd as any);
+      document.removeEventListener("touchcancel", handleEnd as any);
+    };
+  }, [groupTouchDraggingId]);
 
   async function handleConfirm() {
     const action = confirmActionRef.current;
