@@ -84,3 +84,9 @@ body {
 .brand-link:hover {
   color: var(--brand-blue);
 }
+
+.no-ios-callout {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}

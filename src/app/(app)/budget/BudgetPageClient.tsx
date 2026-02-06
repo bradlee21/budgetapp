@@ -400,7 +400,7 @@ function BudgetTable({
             >
               <div
                 data-dnd-id={r.orderableCategoryId ?? undefined}
-                className="rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950 sm:p-3"
+                className="rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950 sm:p-3 select-none sm:select-text no-ios-callout"
                 onTouchStart={(e) => {
                   if (r.mobileDraggable === false) return;
                   startTouchDrag(e, r.orderableCategoryId);
@@ -440,7 +440,7 @@ function BudgetTable({
                             if (e.key === "Escape") onCancelName();
                           }}
                           autoFocus
-                          className="w-full rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                          className="w-full rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 select-text"
                         />
                         <div className="flex items-center gap-2">
                           <button
@@ -504,7 +504,7 @@ function BudgetTable({
                           onChange={(e) => setEditPlannedAmount(e.target.value)}
                           inputMode="decimal"
                           autoFocus
-                          className="w-full rounded-md border border-zinc-300 bg-white p-2 text-right text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                          className="w-full rounded-md border border-zinc-300 bg-white p-2 text-right text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 select-text"
                         />
                         <div className="flex items-center gap-2">
                           <button
@@ -3168,7 +3168,7 @@ export default function BudgetPage() {
                   >
                     <div
                       data-dnd-id={group.id}
-                      className="rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950 sm:p-3"
+                      className="rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950 sm:p-3 select-none sm:select-text no-ios-callout"
                       draggable
                       onTouchStart={(e) => {
                         if (!group.mobileDraggable) return;
@@ -3221,7 +3221,7 @@ export default function BudgetPage() {
                                 if (e.key === "Escape") cancelEditCategoryName();
                               }}
                               autoFocus
-                              className="w-[200px] rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                              className="w-[200px] rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 select-text"
                             />
                             <button
                               onClick={() => saveCategoryName(group.id)}
@@ -3299,7 +3299,7 @@ export default function BudgetPage() {
                             }))
                           }
                           placeholder="Add category"
-                          className="min-w-[180px] rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                          className="min-w-[180px] rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 select-text"
                         />
                         <button
                           onClick={async () => {
