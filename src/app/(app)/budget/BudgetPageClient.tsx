@@ -101,7 +101,7 @@ function Section({
         <div className="text-lg font-semibold">{title}</div>
         {header}
       </div>
-      <div className="mt-4 overflow-x-auto">{children}</div>
+      <div className="mt-4 overflow-x-hidden sm:overflow-x-auto">{children}</div>
     </div>
   );
 }

@@ -481,7 +481,7 @@ export default function TransactionsPage() {
 
           <div className="mt-4 flex flex-wrap items-end gap-3">
             {/* Date */}
-            <label className="grid gap-1">
+            <label className="grid w-full gap-1 sm:w-auto">
               <span className="text-sm text-zinc-700 dark:text-zinc-300">Date</span>
               <input
                 type="date"
@@ -492,12 +492,12 @@ export default function TransactionsPage() {
             </label>
 
             {/* Category */}
-            <label className="grid gap-1">
+            <label className="grid w-full gap-1 sm:w-auto">
               <span className="text-sm text-zinc-700 dark:text-zinc-300">Category</span>
           <select
   value={categoryId}
   onChange={(e) => setCategoryId(e.target.value)}
-  className="min-w-[240px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+  className="w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 sm:min-w-[240px] dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
 >
   <option value="">Select category</option>
 
@@ -525,14 +525,14 @@ export default function TransactionsPage() {
 
             {/* Card (conditional) */}
             {needsCard && (
-              <label className="grid gap-1">
+              <label className="grid w-full gap-1 sm:w-auto">
                 <span className="text-sm text-zinc-700 dark:text-zinc-300">
                   Credit card
                 </span>
                 <select
                   value={cardId}
                   onChange={(e) => setCardId(e.target.value)}
-                  className="min-w-[240px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                  className="w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 sm:min-w-[240px] dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                 >
                   <option value="">Select a card</option>
                   {cards.map((cc) => (
@@ -545,19 +545,19 @@ export default function TransactionsPage() {
             )}
 
             {/* Amount */}
-            <label className="grid gap-1">
+            <label className="grid w-full gap-1 sm:w-auto">
               <span className="text-sm text-zinc-700 dark:text-zinc-300">Amount</span>
               <input
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 inputMode="decimal"
                 placeholder="85.25"
-                className="w-[140px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                className="w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 sm:w-[140px] dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
               />
             </label>
 
             {/* Description (optional) */}
-            <label className="grid gap-1">
+            <label className="grid w-full gap-1 sm:w-auto">
               <span className="text-sm text-zinc-700 dark:text-zinc-300">
                 Description (optional)
               </span>
@@ -565,13 +565,13 @@ export default function TransactionsPage() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Target, Venmo, notes..."
-                className="min-w-[260px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                className="w-full rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 sm:min-w-[260px] dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
               />
             </label>
 
             <button
               onClick={addTxn}
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 sm:w-auto dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
             >
               Add
             </button>
