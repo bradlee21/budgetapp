@@ -2,17 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
-import { writeAuthCookie } from "@/lib/authCookies";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-const supabase =
-  supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
-    : null;
+import { supabase } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,14 +14,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     (async () => {
-      if (!supabase) {
-        setMsg("Supabase env vars are missing. Check .env.local and restart npm run dev.");
-        return;
-      }
-      const [{ data, error }, { data: sessionData }] = await Promise.all([
-        supabase.auth.getUser(),
-        supabase.auth.getSession(),
-      ]);
+      const { data, error } = await supabase.auth.getUser();
 
       // "Auth session missing!" just means not logged in yet.
       // Don't display it as an error.
@@ -38,12 +22,10 @@ export default function LoginPage() {
         setMsg(error.message);
       }
 
-      writeAuthCookie(sessionData.session ?? null);
       setUser(data.user ?? null);
 
       supabase.auth.onAuthStateChange((_event, session) => {
         setUser(session?.user ?? null);
-        writeAuthCookie(session ?? null);
       });
     })();
   }, []);
@@ -57,7 +39,6 @@ export default function LoginPage() {
   async function signUp() {
     setMsg("");
     try {
-      if (!supabase) throw new Error("Supabase client not initialized (missing env vars).");
       if (!email || !password) throw new Error("Enter email + password first.");
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) setMsg(error.message);
@@ -70,7 +51,6 @@ export default function LoginPage() {
   async function signIn() {
     setMsg("");
     try {
-      if (!supabase) throw new Error("Supabase client not initialized (missing env vars).");
       if (!email || !password) throw new Error("Enter email + password first.");
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setMsg(error.message);
