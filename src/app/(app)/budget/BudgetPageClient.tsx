@@ -135,12 +135,12 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <div className="mt-6 rounded-lg border brand-border brand-panel p-3 sm:mt-8 sm:p-4">
+    <div className="mt-4 rounded-lg border brand-border brand-panel p-2 sm:mt-8 sm:p-4">
       <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
         <div className="text-lg font-semibold brand-text">{title}</div>
         {header}
       </div>
-      <div className="mt-3 overflow-x-hidden sm:mt-4 sm:overflow-x-auto">{children}</div>
+      <div className="mt-2 overflow-x-hidden sm:mt-4 sm:overflow-x-auto">{children}</div>
     </div>
   );
 }
@@ -384,7 +384,7 @@ function BudgetTable({
 
   return (
     <>
-      <div className="space-y-2 sm:hidden">
+      <div className="space-y-1 sm:hidden">
         {rows.length === 0 ? (
           <div className="rounded-md border border-zinc-200 bg-white p-2 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 sm:p-3">
             Nothing here yet.
@@ -487,7 +487,7 @@ function BudgetTable({
                 <div className="flex items-center gap-2" />
               </div>
 
-              <div className="mt-2 grid grid-cols-2 gap-2 border-t border-zinc-200 pt-2 text-sm tabular-nums text-zinc-900 dark:border-zinc-800 dark:text-zinc-100 sm:mt-3">
+              <div className="mt-1 grid grid-cols-2 gap-1 border-t border-zinc-200 pt-1 text-sm tabular-nums text-zinc-900 dark:border-zinc-800 dark:text-zinc-100 sm:mt-3 sm:gap-2 sm:pt-2">
                 <div>
                   <div className="text-xs text-zinc-600 dark:text-zinc-400">Planned</div>
                   <div className="mt-1">
@@ -2837,7 +2837,19 @@ export default function BudgetPage() {
 
         <div className="sticky top-0 z-20 rounded-lg border brand-border brand-sticky backdrop-blur px-2">
           <div className="py-3">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="md:hidden">
+              <div className="rounded-lg border border-t-4 brand-top-border brand-border brand-panel p-3">
+                <div className="text-sm text-zinc-700 dark:text-zinc-300">Left to budget</div>
+                <div className="mt-2 text-2xl font-semibold brand-text">
+                  {formatMoney(leftToBudget)}
+                </div>
+                <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                  Rollover start + planned income - planned outflows
+                </div>
+              </div>
+            </div>
+
+            <div className="hidden gap-3 md:grid md:grid-cols-2">
               <div className="rounded-lg border border-t-4 brand-top-border brand-border brand-panel p-4">
                 <div className="text-sm text-zinc-700 dark:text-zinc-300">Left to budget</div>
                 <div className="mt-2 text-2xl font-semibold brand-text">
@@ -2908,7 +2920,7 @@ export default function BudgetPage() {
                 actualLabel="Received"
                 remainingLabel="Difference"
               />
-              <div className="mt-2 flex flex-wrap items-end gap-2 sm:mt-3">
+              <div className="mt-1 flex flex-wrap items-end gap-2 sm:mt-3">
                 {addIncomeOpen ? (
                   <>
                     <input
@@ -2986,7 +2998,7 @@ export default function BudgetPage() {
                 actualLabel="Spent"
                 remainingLabel="Remaining"
               />
-              <div className="mt-2 flex flex-wrap items-end gap-2 sm:mt-3">
+              <div className="mt-1 flex flex-wrap items-end gap-2 sm:mt-3">
                 {addGivingOpen ? (
                   <>
                     <input
@@ -3064,7 +3076,7 @@ export default function BudgetPage() {
                 actualLabel="Received"
                 remainingLabel="Difference"
               />
-              <div className="mt-2 flex flex-wrap items-end gap-2 sm:mt-3">
+              <div className="mt-1 flex flex-wrap items-end gap-2 sm:mt-3">
                 {addSavingsOpen ? (
                   <>
                     <input
@@ -3121,7 +3133,7 @@ export default function BudgetPage() {
                 />
               }
             >
-              <div className="grid gap-3 sm:gap-4">
+              <div className="grid gap-2 sm:gap-4">
                 {expenseGrouped.groups.map((group) => (
                   <SwipeRow
                     key={group.id}
@@ -3216,7 +3228,7 @@ export default function BudgetPage() {
                       </span>
                       </div>
                     </div>
-                    <div className="mt-2 sm:mt-3">
+                    <div className="mt-1 sm:mt-3">
                       <BudgetTable
                         rows={group.rows}
                         onDrop={onDropCategory}
@@ -3239,7 +3251,7 @@ export default function BudgetPage() {
                         remainingLabel="Remaining"
                       />
                   </div>
-                  <div className="mt-2 flex flex-wrap items-end gap-2 sm:mt-3">
+                  <div className="mt-1 flex flex-wrap items-end gap-2 sm:mt-3">
                     {addChildOpenId === group.id ? (
                       <>
                         <input
@@ -3289,7 +3301,7 @@ export default function BudgetPage() {
                   </SwipeRow>
                 ))}
             </div>
-              <div className="mt-3 flex flex-wrap items-end gap-2 sm:mt-4">
+              <div className="mt-2 flex flex-wrap items-end gap-2 sm:mt-4">
                 {addExpenseGroupOpen ? (
                   <>
                     <input

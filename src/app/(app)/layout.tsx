@@ -1,3 +1,5 @@
+import MobileBottomNav from "@/components/MobileBottomNav";
+
 export default function AppLayout({
   children,
 }: {
@@ -9,7 +11,7 @@ export default function AppLayout({
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="font-semibold brand-text">Budget App</div>
 
-          <nav className="flex flex-wrap gap-2 text-sm">
+          <nav className="hidden flex-wrap gap-2 text-sm md:flex">
             <a
               href="/budget"
               className="brand-link rounded-md px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-900"
@@ -31,7 +33,10 @@ export default function AppLayout({
           </nav>
         </div>
       </header>
-      {children}
+      <div className="pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
+        {children}
+      </div>
+      <MobileBottomNav />
     </>
   );
 }
