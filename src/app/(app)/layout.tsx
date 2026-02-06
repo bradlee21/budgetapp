@@ -16,6 +16,18 @@ export default function AppLayout({
             >
               Budget
             </a>
+            <a
+              href="/transactions"
+              className="rounded-md px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+            >
+              Transactions
+            </a>
+            <a
+              href="/debt-accounts"
+              className="rounded-md px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+            >
+              Debt accounts
+            </a>
           </nav>
         </div>
       </header>

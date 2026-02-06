@@ -4,7 +4,7 @@ import AuthGate from "@/components/AuthGate";
 import { supabase } from "@/lib/supabaseClient";
 import { addMonths, firstDayOfMonth, nextMonth, toYMD } from "@/lib/date";
 import { formatMoney } from "@/lib/format";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 type Category = {
   id: string;
@@ -28,6 +28,88 @@ type Txn = {
   category_id: string | null;
   credit_card_id: string | null;
 };
+
+function SwipeRow({
+  enabled,
+  onDelete,
+  deleteLabel = "Delete",
+  children,
+}: {
+  enabled: boolean;
+  onDelete: () => void;
+  deleteLabel?: string;
+  children: ReactNode;
+}) {
+  const [offset, setOffset] = useState(0);
+  const startXRef = useRef(0);
+  const startYRef = useRef(0);
+  const swipingRef = useRef(false);
+
+  return (
+    <div
+      className="relative overflow-hidden"
+      onTouchStart={(e) => {
+        if (!enabled) return;
+        const target = e.target as HTMLElement | null;
+        if (offset !== 0 && target?.closest("[data-swipe-delete]")) {
+          return;
+        }
+        if (offset !== 0) setOffset(0);
+        const touch = e.touches[0];
+        startXRef.current = touch.clientX;
+        startYRef.current = touch.clientY;
+        swipingRef.current = false;
+      }}
+      onTouchMove={(e) => {
+        if (!enabled) return;
+        const touch = e.touches[0];
+        const dx = touch.clientX - startXRef.current;
+        const dy = touch.clientY - startYRef.current;
+        if (!swipingRef.current) {
+          if (Math.abs(dx) > Math.abs(dy) + 6) {
+            swipingRef.current = true;
+          } else {
+            return;
+          }
+        }
+        if (dx < 0) {
+          e.preventDefault();
+          setOffset(Math.max(dx, -80));
+        } else {
+          setOffset(0);
+        }
+      }}
+      onTouchEnd={() => {
+        if (!enabled) return;
+        if (swipingRef.current) {
+          setOffset((prev) => (prev < -50 ? -80 : 0));
+        }
+        swipingRef.current = false;
+      }}
+    >
+      {enabled && (
+        <button
+          data-swipe-delete
+          onClick={() => {
+            setOffset(0);
+            onDelete();
+          }}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+          className="absolute right-0 top-0 h-full w-20 bg-red-600 text-xs font-semibold text-white"
+        >
+          {deleteLabel}
+        </button>
+      )}
+      <div
+        className="transition-transform duration-150"
+        style={{ transform: `translateX(${offset}px)` }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function TransactionsPage() {
   const [msg, setMsg] = useState("");
@@ -606,10 +688,13 @@ export default function TransactionsPage() {
                 const isEditing = editId === t.id;
 
                 return (
-                  <div
+                  <SwipeRow
                     key={t.id}
-                    className="rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
+                    enabled={!isEditing}
+                    onDelete={() => deleteTxn(t)}
+                    deleteLabel="Delete"
                   >
+                    <div className="rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950">
                     <div className="flex items-start justify-between gap-2">
                       <div className="text-sm text-zinc-600 dark:text-zinc-400">
                         {isEditing ? (
@@ -739,23 +824,16 @@ export default function TransactionsPage() {
                           </button>
                         </>
                       ) : (
-                        <>
-                          <button
-                            onClick={() => startEdit(t)}
-                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => deleteTxn(t)}
-                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                          >
-                            Delete
-                          </button>
-                        </>
+                        <button
+                          onClick={() => startEdit(t)}
+                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                        >
+                          Edit
+                        </button>
                       )}
                     </div>
                   </div>
+                  </SwipeRow>
                 );
               })
             )}
@@ -801,6 +879,14 @@ export default function TransactionsPage() {
                       <tr
                         key={t.id}
                         className="border-t border-zinc-200 dark:border-zinc-800"
+                        onContextMenu={
+                          isEditing
+                            ? undefined
+                            : (e) => {
+                                e.preventDefault();
+                                deleteTxn(t);
+                              }
+                        }
                       >
                         <td className="p-3">
                           {isEditing ? (
@@ -926,12 +1012,6 @@ export default function TransactionsPage() {
                                 className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
                               >
                                 Edit
-                              </button>
-                              <button
-                                onClick={() => deleteTxn(t)}
-                                className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                              >
-                                Delete
                               </button>
                             </div>
                           )}
