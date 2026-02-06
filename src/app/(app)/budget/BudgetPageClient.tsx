@@ -2769,8 +2769,8 @@ export default function BudgetPage() {
   async function signOutUser() {
     setMsg("");
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      await fetch("/api/auth/sign-out", { method: "POST" });
+      await supabase.auth.signOut({ scope: "local" });
       router.replace("/login");
     } catch (e: any) {
       setMsg(e?.message ?? String(e));

@@ -14,19 +14,19 @@ export default function LoginPage() {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase.auth.getUser();
-
-      // "Auth session missing!" just means not logged in yet.
-      // Don't display it as an error.
-      if (error && !error.message.toLowerCase().includes("auth session missing")) {
-        setMsg(error.message);
+      const res = await fetch("/api/auth/session", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        const session = data?.session;
+        if (session?.access_token && session?.refresh_token) {
+          await supabase.auth.setSession({
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+          });
+          setUser(session.user ?? null);
+          return;
+        }
       }
-
-      setUser(data.user ?? null);
-
-      supabase.auth.onAuthStateChange((_event, session) => {
-        setUser(session?.user ?? null);
-      });
     })();
   }, []);
 
@@ -40,9 +40,14 @@ export default function LoginPage() {
     setMsg("");
     try {
       if (!email || !password) throw new Error("Enter email + password first.");
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) setMsg(error.message);
-      else setMsg("Sign-up successful. If email confirmation is ON, check your inbox.");
+      const res = await fetch("/api/auth/sign-up", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok || data?.error) throw new Error(data?.error ?? "Sign-up failed.");
+      setMsg("Sign-up successful. If email confirmation is ON, check your inbox.");
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
     }
@@ -52,9 +57,23 @@ export default function LoginPage() {
     setMsg("");
     try {
       if (!email || !password) throw new Error("Enter email + password first.");
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setMsg(error.message);
-      else setMsg("Signed in.");
+      const res = await fetch("/api/auth/sign-in", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok || data?.error) throw new Error(data?.error ?? "Sign-in failed.");
+      const sessionRes = await fetch("/api/auth/session", { cache: "no-store" });
+      const sessionData = await sessionRes.json();
+      const session = sessionData?.session;
+      if (session?.access_token && session?.refresh_token) {
+        await supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+      }
+      setMsg("Signed in.");
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
     }

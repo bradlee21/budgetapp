@@ -12,15 +12,27 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     let mounted = true;
 
     (async () => {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!mounted) return;
-
-      if (!userData.user) {
+      try {
+        const res = await fetch("/api/auth/session", { cache: "no-store" });
+        if (!res.ok) {
+          router.replace("/login");
+          return;
+        }
+        const data = await res.json();
+        if (!mounted) return;
+        const session = data?.session;
+        if (!session?.access_token || !session?.refresh_token) {
+          router.replace("/login");
+          return;
+        }
+        await supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+        setReady(true);
+      } catch {
         router.replace("/login");
-        return;
       }
-
-      setReady(true);
     })();
 
     return () => {
