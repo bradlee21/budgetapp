@@ -327,6 +327,7 @@ function BudgetTable({
   const touchTargetIdRef = useRef<string | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const [touchDraggingId, setTouchDraggingId] = useState<string | null>(null);
+  const [touchDragPoint, setTouchDragPoint] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     onDropRef.current = onDrop;
@@ -365,6 +366,7 @@ function BudgetTable({
     touchStartRef.current = { x: touch.clientX, y: touch.clientY };
     touchDragIdRef.current = id;
     touchTargetIdRef.current = null;
+    setTouchDragPoint({ x: touch.clientX, y: touch.clientY });
     clearTouchDragTimer();
     touchDragTimerRef.current = window.setTimeout(() => {
       touchDragActiveRef.current = true;
@@ -383,6 +385,7 @@ function BudgetTable({
     }
     if (touchDragActiveRef.current) {
       e.preventDefault();
+      setTouchDragPoint({ x: touch.clientX, y: touch.clientY });
       const target = document
         .elementFromPoint(touch.clientX, touch.clientY)
         ?.closest("[data-dnd-id]") as HTMLElement | null;
@@ -404,12 +407,25 @@ function BudgetTable({
     touchDragIdRef.current = null;
     touchTargetIdRef.current = null;
     touchStartRef.current = null;
+    setTouchDragPoint(null);
     setTouchDraggingId(null);
   }
 
   return (
     <>
       <div className="space-y-1 sm:hidden">
+        {touchDraggingId && touchDragPoint && (
+          <div
+            className="pointer-events-none fixed left-0 top-0 z-[90] -translate-x-1/2 -translate-y-1/2"
+            style={{
+              transform: `translate(${touchDragPoint.x}px, ${touchDragPoint.y}px)`,
+            }}
+          >
+            <div className="flex items-center gap-2 rounded-full border border-blue-200 bg-white/95 px-2 py-1 text-[10px] font-semibold text-blue-700 shadow-md dark:border-blue-900/60 dark:bg-zinc-900/95 dark:text-blue-200">
+              Dragging
+            </div>
+          </div>
+        )}
         {rows.length === 0 ? (
           <div className="rounded-md border border-zinc-200 bg-white p-2 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 sm:p-3">
             Nothing here yet.
@@ -427,6 +443,12 @@ function BudgetTable({
                 className={`rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950 sm:p-3 select-none sm:select-text no-ios-callout transition-transform duration-150 ${
                   touchDraggingId && r.orderableCategoryId === touchDraggingId
                     ? "shadow-md ring-1 ring-blue-200 dark:ring-blue-900/60 scale-[1.01]"
+                    : ""
+                } ${
+                  touchDraggingId &&
+                  touchTargetIdRef.current &&
+                  r.orderableCategoryId === touchTargetIdRef.current
+                    ? "ring-1 ring-blue-400/70"
                     : ""
                 }`}
                 onTouchStart={(e) => {
