@@ -133,9 +133,9 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <div className="mt-8 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="mt-8 rounded-lg border brand-border brand-panel p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-lg font-semibold">{title}</div>
+        <div className="text-lg font-semibold brand-text">{title}</div>
         {header}
       </div>
       <div className="mt-4 overflow-x-hidden sm:overflow-x-auto">{children}</div>
@@ -372,7 +372,7 @@ function BudgetTable({
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => onSaveName(r.orderableCategoryId!)}
-                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            className="btn-brand rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
                           >
                             Save
                           </button>
@@ -442,7 +442,7 @@ function BudgetTable({
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => onSavePlanned(r.id)}
-                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            className="btn-brand rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
                           >
                             Save
                           </button>
@@ -485,7 +485,7 @@ function BudgetTable({
 
       <div className="hidden w-full overflow-x-auto sm:block">
         <table className="min-w-[520px] w-full border-collapse text-sm">
-          <thead className="text-zinc-700 dark:text-zinc-300">
+          <thead className="brand-table-head text-zinc-700 dark:text-zinc-300">
             <tr>
               <th className="p-2 text-left">Item</th>
               {showOrder && <th className="p-2 text-right">Order</th>}
@@ -563,7 +563,7 @@ function BudgetTable({
                             />
                             <button
                               onClick={() => onSaveName(r.orderableCategoryId!)}
-                              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                              className="btn-brand rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
                             >
                               Save
                             </button>
@@ -634,7 +634,7 @@ function BudgetTable({
                         />
                         <button
                           onClick={() => onSavePlanned(r.id)}
-                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                          className="btn-brand rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
                         >
                           Save
                         </button>
@@ -760,7 +760,6 @@ export default function BudgetPage() {
   const [addSavingsOpen, setAddSavingsOpen] = useState(false);
   const [addExpenseGroupOpen, setAddExpenseGroupOpen] = useState(false);
   const [addChildOpenId, setAddChildOpenId] = useState<string | null>(null);
-  const [mobileInsightsOpen, setMobileInsightsOpen] = useState(false);
   const [confirmState, setConfirmState] = useState<{
     open: boolean;
     title: string;
@@ -2577,13 +2576,13 @@ export default function BudgetPage() {
       <main className="mx-auto mt-6 w-full max-w-6xl px-4 sm:mt-10 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-baseline gap-2">
-            <h1 className="text-3xl font-bold">Budget</h1>
+            <h1 className="text-3xl font-bold brand-text">Budget</h1>
             <span className="text-sm text-zinc-600 dark:text-zinc-300">
               | {monthLabel}
             </span>
           </div>
 
-          <div className="relative">
+          <div className="relative z-50">
             <button
               onClick={() => setHeaderMenuOpen((v) => !v)}
               className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
@@ -2593,7 +2592,7 @@ export default function BudgetPage() {
             </button>
 
             {headerMenuOpen && (
-              <div className="absolute right-0 mt-2 w-56 rounded-lg border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="absolute right-0 z-50 mt-2 w-56 rounded-lg border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
                 <label className="grid gap-1 p-2 text-xs text-zinc-600 dark:text-zinc-300">
                   Month
                   <select
@@ -2684,7 +2683,7 @@ export default function BudgetPage() {
         )}
 
         {msg && (
-          <div className="mt-4 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100">
+          <div className="mt-4 rounded-md border brand-border brand-panel p-3 text-sm text-zinc-900 dark:text-zinc-100">
             {msg}
           </div>
         )}
@@ -2719,14 +2718,12 @@ export default function BudgetPage() {
           </div>
         )}
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)_320px]">
-          <aside className="hidden lg:block">
-            <div className="sticky top-20 space-y-4">
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                  Left to budget
-                </div>
-                <div className="mt-2 text-2xl font-semibold">
+        <div className="sticky top-0 z-20 rounded-lg border brand-border brand-sticky backdrop-blur px-2">
+          <div className="py-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-t-4 brand-top-border brand-border brand-panel p-4">
+                <div className="text-sm text-zinc-700 dark:text-zinc-300">Left to budget</div>
+                <div className="mt-2 text-2xl font-semibold brand-text">
                   {formatMoney(leftToBudget)}
                 </div>
                 <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
@@ -2734,7 +2731,7 @@ export default function BudgetPage() {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="rounded-lg border border-t-4 brand-top-border brand-border brand-panel p-4">
                 <div className="text-sm text-zinc-700 dark:text-zinc-300">Actual</div>
                 <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
                   Income:{" "}
@@ -2755,165 +2752,11 @@ export default function BudgetPage() {
                   </span>
                 </div>
               </div>
-
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                  Rollover
-                </div>
-                <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-                  Start:
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <input
-                    value={availableStart}
-                    onChange={(e) => {
-                      setAvailableStart(e.target.value);
-                      setAvailableDirty(true);
-                    }}
-                    inputMode="decimal"
-                    className="w-[140px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                    placeholder="0"
-                  />
-                  <button
-                    onClick={saveAvailableStart}
-                    disabled={savingAvailable || !availableDirty}
-                    className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
-                  >
-                    {savingAvailable ? "Saving..." : "Save"}
-                  </button>
-                </div>
-                <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-                  End:{" "}
-                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                    {formatMoney(availableEnd)}
-                  </span>
-                </div>
-                {budgetMonth && (
-                  <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                    Month key: {budgetMonth.month}
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                <div className="text-sm text-zinc-700 dark:text-zinc-300">Debt insight</div>
-                      <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-                        Total card balance:{" "}
-                        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                          {formatMoney(cardLikeAccounts.reduce((s, c) => s + c.balance, 0))}
-                        </span>
-                      </div>
-                <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                  Payments this month: {formatMoney(debtPaymentsThisMonth)}
-                </div>
-              </div>
             </div>
-          </aside>
+          </div>
+        </div>
 
-          <div>
-            <div className="mb-4 space-y-3 lg:hidden">
-              <div className="grid gap-3">
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                  <div className="text-sm text-zinc-700 dark:text-zinc-300">Left to budget</div>
-                  <div className="mt-2 text-2xl font-semibold">
-                    {formatMoney(leftToBudget)}
-                  </div>
-                  <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                    Rollover start + planned income - planned outflows
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                  <div className="text-sm text-zinc-700 dark:text-zinc-300">Actual</div>
-                  <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-                    Income:{" "}
-                    <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                      {formatMoney(actualIncome)}
-                    </span>
-                  </div>
-                  <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                    Outflow:{" "}
-                    <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                      {formatMoney(actualOut)}
-                    </span>
-                  </div>
-                  <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                    Net:{" "}
-                    <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                      {formatMoney(actualNet)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setMobileInsightsOpen((prev) => !prev)}
-                className="flex w-full items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
-              >
-                <span className="font-semibold">Insights</span>
-                <span className="text-xs text-zinc-600 dark:text-zinc-400">
-                  {mobileInsightsOpen ? "Hide" : "Show"}
-                </span>
-              </button>
-
-              {mobileInsightsOpen && (
-                <div className="space-y-3">
-                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                    <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                      Rollover
-                    </div>
-                    <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-                      Start:
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      <input
-                        value={availableStart}
-                        onChange={(e) => {
-                          setAvailableStart(e.target.value);
-                          setAvailableDirty(true);
-                        }}
-                        inputMode="decimal"
-                        className="w-[140px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                        placeholder="0"
-                      />
-                      <button
-                        onClick={saveAvailableStart}
-                        disabled={savingAvailable || !availableDirty}
-                        className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
-                      >
-                        {savingAvailable ? "Saving..." : "Save"}
-                      </button>
-                    </div>
-                    <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-                      End:{" "}
-                      <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                        {formatMoney(availableEnd)}
-                      </span>
-                    </div>
-                    {budgetMonth && (
-                      <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                        Month key: {budgetMonth.month}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                    <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                      Debt insight
-                    </div>
-                    <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-                      Total card balance:{" "}
-                      <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                        {formatMoney(cardLikeAccounts.reduce((s, c) => s + c.balance, 0))}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                      Payments this month: {formatMoney(debtPaymentsThisMonth)}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+        <div className="mt-6">
 
             <Section
               title="Income"
@@ -2968,7 +2811,7 @@ export default function BudgetPage() {
                         await addGroup("income");
                         setAddIncomeOpen(false);
                       }}
-                      className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                      className="btn-brand rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
                     >
                       Save
                     </button>
@@ -2985,7 +2828,7 @@ export default function BudgetPage() {
                 ) : (
                   <button
                     onClick={() => setAddIncomeOpen(true)}
-                    className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                    className="btn-brand rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
                   >
                     Add
                   </button>
@@ -3046,7 +2889,7 @@ export default function BudgetPage() {
                         await addGroup("giving");
                         setAddGivingOpen(false);
                       }}
-                      className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                      className="btn-brand rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
                     >
                       Save
                     </button>
@@ -3063,7 +2906,7 @@ export default function BudgetPage() {
                 ) : (
                   <button
                     onClick={() => setAddGivingOpen(true)}
-                    className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                    className="btn-brand rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
                   >
                     Add
                   </button>
@@ -3124,7 +2967,7 @@ export default function BudgetPage() {
                         await addGroup("savings");
                         setAddSavingsOpen(false);
                       }}
-                      className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                      className="btn-brand rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
                     >
                       Save
                     </button>
@@ -3141,7 +2984,7 @@ export default function BudgetPage() {
                 ) : (
                   <button
                     onClick={() => setAddSavingsOpen(true)}
-                    className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                    className="btn-brand rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
                   >
                     Add
                   </button>
@@ -3295,7 +3138,7 @@ export default function BudgetPage() {
                             await addChildCategory("expense", group.id);
                             setAddChildOpenId(null);
                           }}
-                          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                          className="btn-brand rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
                         >
                           Save
                         </button>
@@ -3312,7 +3155,7 @@ export default function BudgetPage() {
                     ) : (
                       <button
                         onClick={() => setAddChildOpenId(group.id)}
-                        className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                        className="btn-brand rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
                       >
                         Add
                       </button>
@@ -3342,7 +3185,7 @@ export default function BudgetPage() {
                         await addGroup("expense");
                         setAddExpenseGroupOpen(false);
                       }}
-                      className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                      className="btn-brand rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
                     >
                       Save
                     </button>
@@ -3359,7 +3202,7 @@ export default function BudgetPage() {
                 ) : (
                   <button
                     onClick={() => setAddExpenseGroupOpen(true)}
-                    className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                    className="btn-brand rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
                   >
                     Add Group
                   </button>
@@ -3423,7 +3266,7 @@ export default function BudgetPage() {
             <section className="mt-8 hidden">
               <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
                 <table className="w-full border-collapse text-sm">
-                  <thead className="bg-zinc-100 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
+                  <thead className="brand-table-head text-zinc-900 dark:text-zinc-100">
                     <tr>
                       <th className="p-3 text-left">Date</th>
                       <th className="p-3 text-left">Item</th>
@@ -3659,487 +3502,6 @@ export default function BudgetPage() {
               </div>
             </section>
           </div>
-
-          <aside className="hidden space-y-4 lg:sticky lg:top-6 lg:self-start lg:block">
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-              <h2 className="text-lg font-semibold">Add transaction</h2>
-              <div className="mt-4 grid gap-3">
-                <label className="grid gap-1">
-                  <span className="text-sm text-zinc-700 dark:text-zinc-300">Date</span>
-                  <input
-                    type="date"
-                    value={txnDate}
-                    min="2000-01-01"
-                    max="2100-12-31"
-                    onChange={(e) => {
-                      if (e.target.value.length > 10) return;
-                      setTxnDate(e.target.value);
-                      if (txnDateError) setTxnDateError("");
-                    }}
-                    onBlur={() => setTxnDateError(validateDateInput(txnDate))}
-                    className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                  />
-                  {txnDateError && (
-                    <div className="text-xs text-red-600 dark:text-red-400">
-                      {txnDateError}
-                    </div>
-                  )}
-                </label>
-
-                <label className="grid gap-1">
-                  <span className="text-sm text-zinc-700 dark:text-zinc-300">Category</span>
-                  <select
-                    value={txnCategoryId}
-                    onChange={(e) => setTxnCategoryId(e.target.value)}
-                    className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                  >
-                    <option value="">Select category</option>
-                    {(["income", "giving", "savings", "expense", "debt"] as const).map((group) => {
-                      const groupCats = categories.filter((c) => c.group_name === group);
-                      if (groupCats.length === 0) return null;
-                      return (
-                        <optgroup
-                          key={group}
-                          label={group.charAt(0).toUpperCase() + group.slice(1)}
-                        >
-                          {(() => {
-                            const parents = groupCats
-                              .filter((c) => c.parent_id === null)
-                              .slice()
-                              .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
-                            const childrenByParent = new Map<string, Category[]>();
-                            for (const c of groupCats) {
-                              if (!c.parent_id) continue;
-                              if (!childrenByParent.has(c.parent_id)) childrenByParent.set(c.parent_id, []);
-                              childrenByParent.get(c.parent_id)!.push(c);
-                            }
-                            for (const [k, arr] of childrenByParent.entries()) {
-                              arr.sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
-                              childrenByParent.set(k, arr);
-                            }
-                            const opts: ReactElement[] = [];
-                            for (const p of parents) {
-                              const kids = childrenByParent.get(p.id) ?? [];
-                              if (kids.length) {
-                                for (const k of kids) {
-                                  opts.push(
-                                    <option key={k.id} value={k.id}>
-                                      {p.name} / {k.name}
-                                    </option>
-                                  );
-                                }
-                              } else {
-                                opts.push(
-                                  <option key={p.id} value={p.id}>
-                                    {p.name}
-                                  </option>
-                                );
-                              }
-                            }
-                            return opts;
-                          })()}
-                        </optgroup>
-                      );
-                    })}
-                  </select>
-                </label>
-
-                {txnNeedsCard && (
-                  <label className="grid gap-1">
-                    <span className="text-sm text-zinc-700 dark:text-zinc-300">Card</span>
-                    <select
-                      value={txnCardSelectId}
-                      onChange={(e) => setTxnCardSelectId(e.target.value)}
-                      className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                    >
-                      <option value="">Select a card</option>
-                      {cardLikeAccounts.map((cc) => (
-                        <option key={`${cc.kind}:${cc.id}`} value={`${cc.kind}:${cc.id}`}>
-                          {cc.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-
-                {txnNeedsDebtAccount && (
-                  <label className="grid gap-1">
-                    <span className="text-sm text-zinc-700 dark:text-zinc-300">Debt account</span>
-                    <select
-                      value={txnDebtAccountId}
-                      onChange={(e) => setTxnDebtAccountId(e.target.value)}
-                      className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                    >
-                      <option value="">Select a debt account</option>
-                      {debtAccounts
-                        .filter((d) => d.debt_type !== "credit_card")
-                        .map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                )}
-
-                <label className="grid gap-1">
-                  <span className="text-sm text-zinc-700 dark:text-zinc-300">Amount</span>
-                  <input
-                    value={txnAmount}
-                    onChange={(e) => setTxnAmount(e.target.value)}
-                    inputMode="decimal"
-                    placeholder="85.25"
-                    className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                  />
-                </label>
-
-                <label className="grid gap-1">
-                  <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                    Description (optional)
-                  </span>
-                  <input
-                    value={txnDescription}
-                    onChange={(e) => setTxnDescription(e.target.value)}
-                    placeholder="Target, Venmo, notes..."
-                    className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                  />
-                </label>
-
-                <button
-                  onClick={addTxn}
-                  className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
-                >
-                  Add
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-              <h2 className="text-lg font-semibold">Transactions</h2>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
-                <span>{filteredTxns.length} items</span>
-                <span>|</span>
-                <span>Total {formatMoney(filteredTxnTotal)}</span>
-              </div>
-              <div className="mt-3 grid gap-2">
-                <label className="grid gap-1">
-                  <span className="text-xs text-zinc-600 dark:text-zinc-400">Filter</span>
-                  <select
-                    value={txnFilterGroup}
-                    onChange={(e) =>
-                      setTxnFilterGroup(e.target.value as typeof txnFilterGroup)
-                    }
-                    className="rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                  >
-                    <option value="all">All</option>
-                    <option value="income">Income</option>
-                    <option value="giving">Giving</option>
-                    <option value="savings">Savings</option>
-                    <option value="expense">Expenses</option>
-                    <option value="debt">Debt</option>
-                  </select>
-                </label>
-                <label className="grid gap-1">
-                  <span className="text-xs text-zinc-600 dark:text-zinc-400">Search</span>
-                  <input
-                    value={txnSearch}
-                    onChange={(e) => setTxnSearch(e.target.value)}
-                    placeholder="Search transactions"
-                    className="rounded-md border border-zinc-300 bg-white p-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                  />
-                </label>
-              </div>
-              <div className="mt-3 max-h-[420px] overflow-x-hidden overflow-y-auto sm:overflow-x-auto">
-                <table className="w-full border-collapse text-sm">
-                  <thead className="bg-zinc-100 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
-                    <tr>
-                      <th className="p-2 text-left">Date</th>
-                      <th className="p-2 text-left">Item</th>
-                      <th className="p-2 text-left">Category</th>
-                      <th className="p-2 text-left">Account</th>
-                      <th className="p-2 text-right">Amount</th>
-                      <th className="p-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-                    {filteredTxns.length === 0 ? (
-                      <tr>
-                        <td className="p-2 text-zinc-600 dark:text-zinc-300" colSpan={6}>
-                          No transactions match your filters.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredTxns.map((t) => {
-                        const cat = t.category_id ? categoryById.get(t.category_id) : null;
-                        const card = t.credit_card_id ? cardById.get(t.credit_card_id) : null;
-                        const debt = t.debt_account_id ? debtById.get(t.debt_account_id) : null;
-                        const isEditing = editTxnId === t.id;
-                        const itemLabel =
-                          t.category_id
-                            ? fallbackTxnName(
-                                t.category_id,
-                                t.credit_card_id,
-                                t.name ?? null
-                              )
-                            : (t.name ?? "Transaction");
-                        return (
-                          <tr
-                            key={t.id}
-                            className="border-t border-zinc-200 dark:border-zinc-800"
-                          >
-                            <td className="p-2">
-                              {isEditing ? (
-                                <div className="grid gap-1">
-                                  <input
-                                    type="date"
-                                    value={editTxnDate}
-                                    min="2000-01-01"
-                                    max="2100-12-31"
-                                    onChange={(e) => {
-                                      if (e.target.value.length > 10) return;
-                                      setEditTxnDate(e.target.value);
-                                      if (editTxnDateError) setEditTxnDateError("");
-                                    }}
-                                    onBlur={() =>
-                                      setEditTxnDateError(validateDateInput(editTxnDate))
-                                    }
-                                    className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                                  />
-                                  {editTxnDateError && (
-                                    <div className="text-xs text-red-600 dark:text-red-400">
-                                      {editTxnDateError}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                t.date
-                              )}
-                            </td>
-                            <td className="p-2">
-                              {isEditing ? (
-                                <input
-                                  value={editTxnDescription}
-                                  onChange={(e) => setEditTxnDescription(e.target.value)}
-                                  placeholder="Target, Venmo, notes..."
-                                  className="min-w-[220px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                                />
-                              ) : (
-                                <>
-                                  <div className="font-medium">{itemLabel}</div>
-                                  {!!t.name?.trim() && (
-                                    <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                                      {t.name}
-                                    </div>
-                                  )}
-                                </>
-                              )}
-                            </td>
-                            <td className="p-2">
-                              {isEditing ? (
-                                <select
-                                  value={editTxnCategoryId}
-                                  onChange={(e) => setEditTxnCategoryId(e.target.value)}
-                                  className="min-w-[200px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                                >
-                                  <option value="">Select category</option>
-                                  {(["income", "giving", "savings", "expense", "debt"] as const).map((group) => {
-                                    const groupCats = categories.filter((c) => c.group_name === group);
-                                    if (groupCats.length === 0) return null;
-                                    return (
-                                      <optgroup
-                                        key={group}
-                                        label={group.charAt(0).toUpperCase() + group.slice(1)}
-                                      >
-                                        {(() => {
-                                          const parents = groupCats
-                                            .filter((c) => c.parent_id === null)
-                                            .slice()
-                                            .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
-                                          const childrenByParent = new Map<string, Category[]>();
-                                          for (const c of groupCats) {
-                                            if (!c.parent_id) continue;
-                                            if (!childrenByParent.has(c.parent_id)) childrenByParent.set(c.parent_id, []);
-                                            childrenByParent.get(c.parent_id)!.push(c);
-                                          }
-                                          for (const [k, arr] of childrenByParent.entries()) {
-                                            arr.sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
-                                            childrenByParent.set(k, arr);
-                                          }
-                                          const opts: ReactElement[] = [];
-                                          for (const p of parents) {
-                                            const kids = childrenByParent.get(p.id) ?? [];
-                                            if (kids.length) {
-                                              for (const k of kids) {
-                                                opts.push(
-                                                  <option key={k.id} value={k.id}>
-                                                    {p.name} / {k.name}
-                                                  </option>
-                                                );
-                                              }
-                                            } else {
-                                              opts.push(
-                                                <option key={p.id} value={p.id}>
-                                                  {p.name}
-                                                </option>
-                                              );
-                                            }
-                                          }
-                                          return opts;
-                                        })()}
-                                      </optgroup>
-                                    );
-                                  })}
-                                </select>
-                              ) : (
-                                <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                                  {cat ? `${cat.group_name} - ${cat.name}` : "--"}
-                                </div>
-                              )}
-                            </td>
-                            <td className="p-2">
-                              {isEditing ? (
-                                editTxnNeedsCard ? (
-                                  <select
-                                    value={editTxnCardSelectId}
-                                    onChange={(e) => setEditTxnCardSelectId(e.target.value)}
-                                    className="min-w-[180px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                                  >
-                                    <option value="">Select a card</option>
-                                    {cardLikeAccounts.map((cc) => (
-                                      <option key={`${cc.kind}:${cc.id}`} value={`${cc.kind}:${cc.id}`}>
-                                        {cc.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                ) : editTxnNeedsDebtAccount ? (
-                                  <select
-                                    value={editTxnDebtAccountId}
-                                    onChange={(e) => setEditTxnDebtAccountId(e.target.value)}
-                                    className="min-w-[180px] rounded-md border border-zinc-300 bg-white p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                                  >
-                                    <option value="">Select a debt account</option>
-                                    {debtAccounts
-                                      .filter((d) => d.debt_type !== "credit_card")
-                                      .map((d) => (
-                                        <option key={d.id} value={d.id}>
-                                          {d.name}
-                                        </option>
-                                      ))}
-                                  </select>
-                                ) : (
-                                  <span className="text-zinc-600 dark:text-zinc-400">--</span>
-                                )
-                              ) : (
-                                card?.name ?? debt?.name ?? "--"
-                              )}
-                            </td>
-                            <td className="p-2 text-right tabular-nums">
-                              {isEditing ? (
-                                <input
-                                  value={editTxnAmount}
-                                  onChange={(e) => setEditTxnAmount(e.target.value)}
-                                  inputMode="decimal"
-                                  className="w-[120px] rounded-md border border-zinc-300 bg-white p-2 text-right text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                                />
-                              ) : (
-                                formatMoney(t.amount)
-                              )}
-                            </td>
-                            <td className="p-2 text-right">
-                              {isEditing ? (
-                                <div className="flex items-center justify-end gap-2">
-                                  <button
-                                    onClick={() => saveEditTxn(t)}
-                                    className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                                  >
-                                    Save
-                                  </button>
-                                  <button
-                                    onClick={cancelEditTxn}
-                                    className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-end gap-2">
-                                  <button
-                                    onClick={() => startEditTxn(t)}
-                                    className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    onClick={() => deleteTxn(t)}
-                                    className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-              <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                Debt accounts
-              </div>
-              <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
-                Manage debt accounts on their own page.
-              </div>
-              <a
-                href="/debt-accounts"
-                className="mt-3 inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
-              >
-                Open debt accounts
-              </a>
-            </div>
-
-            {archivedSorted.length > 0 && (
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                  Hidden categories
-                </div>
-                <div className="mt-2 space-y-2 text-xs text-zinc-600 dark:text-zinc-400">
-                  {archivedSorted.map((c) => (
-                    <div key={c.id} className="flex items-center justify-between gap-2">
-                      <div>
-                        <span className="font-semibold">
-                          {c.group_name.charAt(0).toUpperCase() + c.group_name.slice(1)}
-                        </span>
-                        : {c.name}
-                      </div>
-                      <button
-                        onClick={() => restoreCategory(c.id)}
-                        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
-                      >
-                        Restore
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-              <div className="text-sm text-zinc-700 dark:text-zinc-300">Install app</div>
-              <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
-                iOS: Safari -&gt; Share -&gt; Add to Home Screen.
-              </div>
-              <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                Android/desktop: use your browser's Install option.
-              </div>
-            </div>
-
-          </aside>
-        </div>
       </main>
     </AuthGate>
   );

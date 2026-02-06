@@ -366,7 +366,7 @@ export default function DebtAccountsPage() {
       <main className="mx-auto mt-8 w-full max-w-4xl overflow-x-hidden px-4 sm:mt-10 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold">Debt accounts</h1>
+            <h1 className="text-2xl font-semibold brand-text">Debt accounts</h1>
             <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
               Track balances, minimums, and due dates.
             </div>
@@ -374,7 +374,7 @@ export default function DebtAccountsPage() {
         </div>
 
         {msg && (
-          <div className="mt-4 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100">
+          <div className="mt-4 rounded-md border brand-border brand-panel p-3 text-sm text-zinc-900 dark:text-zinc-100">
             {msg}
           </div>
         )}
@@ -411,9 +411,9 @@ export default function DebtAccountsPage() {
 
         <section
           ref={addFormRef}
-          className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900"
+          className="mt-6 rounded-lg border brand-border brand-panel p-4"
         >
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Add debt</h2>
+          <h2 className="text-sm font-semibold brand-text">Add debt</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1">
               <span className="text-sm text-zinc-700 dark:text-zinc-300">Type</span>
@@ -501,7 +501,7 @@ export default function DebtAccountsPage() {
           <button
             onClick={addDebtAccount}
             disabled={loading}
-            className="mt-3 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+            className="btn-brand mt-3 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
           >
             Add debt
           </button>
@@ -513,7 +513,7 @@ export default function DebtAccountsPage() {
               <div>No debt accounts yet.</div>
               <button
                 onClick={focusAddDebt}
-                className="mt-2 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                className="btn-brand mt-2 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
               >
                 Add debt
               </button>
@@ -638,7 +638,7 @@ export default function DebtAccountsPage() {
                       <>
                         <button
                           onClick={saveEditDebt}
-                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                          className="btn-brand rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
                         >
                           Save
                         </button>

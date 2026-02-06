@@ -814,7 +814,7 @@ export default function TransactionsPage() {
       <main className="mx-auto mt-10 max-w-5xl px-4">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Transactions</h1>
+            <h1 className="text-3xl font-bold brand-text">Transactions</h1>
             <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
               {monthLabel} - {start} {"->"} {end}
             </p>
@@ -850,7 +850,7 @@ export default function TransactionsPage() {
         </div>
 
         {msg && (
-          <div className="mt-4 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100">
+          <div className="mt-4 rounded-md border brand-border brand-panel p-3 text-sm text-zinc-900 dark:text-zinc-100">
             {msg}
           </div>
         )}
@@ -858,9 +858,9 @@ export default function TransactionsPage() {
         {/* Add transaction */}
         <section
           ref={addFormRef}
-          className="mt-8 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900"
+          className="mt-8 rounded-lg border brand-border brand-panel p-4"
         >
-          <h2 className="text-lg font-semibold">Add transaction</h2>
+          <h2 className="text-lg font-semibold brand-text">Add transaction</h2>
 
           <div className="mt-4 flex flex-wrap items-end gap-3">
             {/* Date */}
@@ -975,7 +975,7 @@ export default function TransactionsPage() {
 
             <button
               onClick={addTxn}
-              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 sm:w-auto dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+              className="btn-brand w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 sm:w-auto dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
             >
               Add
             </button>
@@ -995,7 +995,7 @@ export default function TransactionsPage() {
                 <div>No transactions this month.</div>
                 <button
                   onClick={focusAddForm}
-                  className="mt-2 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                  className="btn-brand mt-2 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
                 >
                   Add transaction
                 </button>
@@ -1165,7 +1165,7 @@ export default function TransactionsPage() {
                         <>
                           <button
                             onClick={() => saveEdit(t)}
-                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            className="btn-brand rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
                           >
                             Save
                           </button>
@@ -1192,9 +1192,9 @@ export default function TransactionsPage() {
             )}
           </div>
 
-          <div className="hidden overflow-x-hidden rounded-lg border border-zinc-200 dark:border-zinc-800 sm:overflow-x-auto md:block">
+          <div className="hidden overflow-x-hidden rounded-lg border brand-border border-zinc-200 dark:border-zinc-800 sm:overflow-x-auto md:block">
             <table className="w-full border-collapse text-sm">
-              <thead className="bg-zinc-100 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
+              <thead className="brand-table-head text-zinc-900 dark:text-zinc-100">
                 <tr>
                   <th className="p-3 text-left">Date</th>
                   <th className="p-3 text-left">Item</th>
@@ -1212,7 +1212,7 @@ export default function TransactionsPage() {
                       <div>No transactions this month.</div>
                       <button
                         onClick={focusAddForm}
-                        className="mt-2 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                        className="btn-brand mt-2 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
                       >
                         Add transaction
                       </button>

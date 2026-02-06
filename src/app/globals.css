@@ -3,10 +3,76 @@
 /* Theme-aware defaults */
 :root {
   color-scheme: light dark;
+  --brand-blue: #0078d4;
+  --brand-gray: #5f6a73;
+  --brand-surface: #eef5ff;
+  --brand-surface-alt: #f1f3f5;
+  --brand-border: #c7d6e4;
+  --brand-blue-soft: #e7f1ff;
+  --brand-blue-soft-hover: #d8e8ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand-blue: #4aa3ff;
+    --brand-gray: #9aa4b2;
+    --brand-surface: #0b1c33;
+    --brand-surface-alt: #0f141b;
+    --brand-border: #243245;
+    --brand-blue-soft: #0f2a4b;
+    --brand-blue-soft-hover: #13335a;
+  }
 }
 
 /* Use system theme automatically */
 body {
   background-color: Canvas;
   color: CanvasText;
+}
+
+.brand-text {
+  color: var(--brand-blue);
+}
+
+.brand-border {
+  border-color: var(--brand-border);
+}
+
+.brand-top-border {
+  border-top-color: var(--brand-blue);
+}
+
+.brand-header {
+  background: linear-gradient(90deg, var(--brand-surface), var(--brand-surface-alt));
+}
+
+.brand-sticky {
+  background: linear-gradient(180deg, var(--brand-surface), var(--brand-surface-alt));
+}
+
+.brand-panel {
+  background: linear-gradient(180deg, var(--brand-surface), var(--brand-surface-alt));
+}
+
+.brand-table-head {
+  background: var(--brand-surface);
+  border-bottom: 1px solid var(--brand-border);
+}
+
+.btn-brand {
+  border-color: var(--brand-blue);
+  color: var(--brand-blue);
+  background-color: var(--brand-blue-soft);
+}
+
+.btn-brand:hover {
+  background-color: var(--brand-blue-soft-hover);
+}
+
+.brand-link {
+  color: var(--brand-gray);
+}
+
+.brand-link:hover {
+  color: var(--brand-blue);
 }
