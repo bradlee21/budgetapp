@@ -352,7 +352,7 @@ export default function DebtAccountsPage() {
 
   return (
     <AuthGate>
-      <main className="mx-auto mt-8 w-full max-w-4xl px-4 sm:mt-10 sm:px-6">
+      <main className="mx-auto mt-8 w-full max-w-4xl overflow-x-hidden px-4 sm:mt-10 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold">Debt accounts</h1>

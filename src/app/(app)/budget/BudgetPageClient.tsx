@@ -3762,7 +3762,7 @@ export default function BudgetPage() {
                   />
                 </label>
               </div>
-              <div className="mt-3 max-h-[420px] overflow-x-auto overflow-y-auto">
+              <div className="mt-3 max-h-[420px] overflow-x-hidden overflow-y-auto sm:overflow-x-auto">
                 <table className="w-full border-collapse text-sm">
                   <thead className="bg-zinc-100 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
                     <tr>

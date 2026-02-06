@@ -1064,7 +1064,7 @@ export default function TransactionsPage() {
             )}
           </div>
 
-          <div className="hidden overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800 md:block">
+          <div className="hidden overflow-x-hidden rounded-lg border border-zinc-200 dark:border-zinc-800 sm:overflow-x-auto md:block">
             <table className="w-full border-collapse text-sm">
               <thead className="bg-zinc-100 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
                 <tr>
