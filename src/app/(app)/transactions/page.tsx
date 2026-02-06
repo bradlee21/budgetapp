@@ -197,6 +197,7 @@ function SwipeRow({
 export default function TransactionsPage() {
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const [monthOffset, setMonthOffset] = useState(0);
 
@@ -339,6 +340,15 @@ export default function TransactionsPage() {
       addDateRef.current?.focus();
     }, 200);
   }
+
+  function openAddForm() {
+    setShowAddForm(true);
+  }
+
+  useEffect(() => {
+    if (!showAddForm) return;
+    focusAddForm();
+  }, [showAddForm]);
 
   function parseCardSelectId(value: string) {
     if (!value) return null;
@@ -851,6 +861,15 @@ export default function TransactionsPage() {
             >
               Recalculate balances
             </button>
+
+            <button
+              onClick={openAddForm}
+              className="btn-brand rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+              aria-label="Add transaction"
+              title="Add transaction"
+            >
+              +
+            </button>
           </div>
         </div>
 
@@ -861,11 +880,20 @@ export default function TransactionsPage() {
         )}
 
         {/* Add transaction */}
-        <section
-          ref={addFormRef}
-          className="mt-8 rounded-lg border brand-border brand-panel p-4"
-        >
-          <h2 className="text-lg font-semibold brand-text">Add transaction</h2>
+        {showAddForm && (
+          <section
+            ref={addFormRef}
+            className="mt-8 rounded-lg border brand-border brand-panel p-4"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold brand-text">Add transaction</h2>
+              <button
+                onClick={() => setShowAddForm(false)}
+                className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+              >
+                Close
+              </button>
+            </div>
 
           <div className="mt-4 flex flex-wrap items-end gap-3">
             {/* Date */}
@@ -1012,7 +1040,8 @@ export default function TransactionsPage() {
             Tip: Any <b>Debt</b> category containing <b>"credit card"</b> will ask you to pick
             a card. Other debt categories will ask for a debt account.
           </div>
-        </section>
+          </section>
+        )}
 
         {/* List */}
         <section className="mt-8">
@@ -1021,7 +1050,7 @@ export default function TransactionsPage() {
               <div className="rounded-md border border-zinc-200 bg-white p-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
                 <div>No transactions this month.</div>
                 <button
-                  onClick={focusAddForm}
+                  onClick={openAddForm}
                   className="btn-brand mt-2 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
                 >
                   Add transaction
@@ -1238,7 +1267,7 @@ export default function TransactionsPage() {
                     <td className="p-3 text-zinc-600 dark:text-zinc-300" colSpan={6}>
                       <div>No transactions this month.</div>
                       <button
-                        onClick={focusAddForm}
+                          onClick={openAddForm}
                         className="btn-brand mt-2 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
                       >
                         Add transaction
