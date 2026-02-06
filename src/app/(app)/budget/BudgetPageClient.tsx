@@ -424,7 +424,11 @@ function BudgetTable({
             >
               <div
                 data-dnd-id={r.orderableCategoryId ?? undefined}
-                className="rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950 sm:p-3 select-none sm:select-text no-ios-callout"
+                className={`rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950 sm:p-3 select-none sm:select-text no-ios-callout transition-transform duration-150 ${
+                  touchDraggingId && r.orderableCategoryId === touchDraggingId
+                    ? "shadow-md ring-1 ring-blue-200 dark:ring-blue-900/60 scale-[1.01]"
+                    : ""
+                }`}
                 onTouchStart={(e) => {
                   if (r.mobileDraggable === false) return;
                   startTouchDrag(e, r.orderableCategoryId);
@@ -3211,7 +3215,11 @@ export default function BudgetPage() {
                   >
                     <div
                       data-dnd-id={group.id}
-                      className="rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950 sm:p-3 select-none sm:select-text no-ios-callout"
+                      className={`rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950 sm:p-3 select-none sm:select-text no-ios-callout transition-transform duration-150 ${
+                        groupTouchDraggingId && groupTouchDraggingId === group.id
+                          ? "shadow-md ring-1 ring-blue-200 dark:ring-blue-900/60 scale-[1.01]"
+                          : ""
+                      }`}
                       draggable
                       onTouchStart={(e) => {
                         if (!group.mobileDraggable) return;
