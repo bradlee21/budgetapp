@@ -320,6 +320,7 @@ function BudgetTable({
   actualLabel: string;
   remainingLabel: string;
 }) {
+  const onDropRef = useRef(onDrop);
   const touchDragTimerRef = useRef<number | null>(null);
   const touchDragActiveRef = useRef(false);
   const touchDragIdRef = useRef<string | null>(null);
@@ -328,11 +329,16 @@ function BudgetTable({
   const [touchDraggingId, setTouchDraggingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!touchDraggingId) return;
+    onDropRef.current = onDrop;
+  }, [onDrop]);
+
+  useEffect(() => {
     const handleMove = (e: TouchEvent) => {
+      if (!touchDragActiveRef.current) return;
       moveTouchDrag(e);
     };
     const handleEnd = () => {
+      if (!touchDragActiveRef.current) return;
       endTouchDrag();
     };
     document.addEventListener("touchmove", handleMove as any, { passive: false });
@@ -343,7 +349,7 @@ function BudgetTable({
       document.removeEventListener("touchend", handleEnd as any);
       document.removeEventListener("touchcancel", handleEnd as any);
     };
-  }, [touchDraggingId]);
+  }, []);
 
   function clearTouchDragTimer() {
     if (touchDragTimerRef.current) {
@@ -363,7 +369,7 @@ function BudgetTable({
     touchDragTimerRef.current = window.setTimeout(() => {
       touchDragActiveRef.current = true;
       setTouchDraggingId(id);
-    }, 250);
+    }, 180);
   }
 
   function moveTouchDrag(e: TouchEvent) {
@@ -391,7 +397,7 @@ function BudgetTable({
     if (touchDragActiveRef.current && touchDragIdRef.current) {
       const targetId = touchTargetIdRef.current;
       if (targetId && targetId !== touchDragIdRef.current) {
-        onDrop(targetId, touchDragIdRef.current);
+        onDropRef.current(targetId, touchDragIdRef.current);
       }
     }
     touchDragActiveRef.current = false;
@@ -1832,7 +1838,7 @@ export default function BudgetPage() {
     groupTouchTimerRef.current = window.setTimeout(() => {
       groupTouchActiveRef.current = true;
       setGroupTouchDraggingId(id);
-    }, 250);
+    }, 180);
   }
 
   function moveGroupTouchDrag(e: TouchEvent) {
@@ -1871,11 +1877,12 @@ export default function BudgetPage() {
   }
 
   useEffect(() => {
-    if (!groupTouchDraggingId) return;
     const handleMove = (e: TouchEvent) => {
+      if (!groupTouchActiveRef.current) return;
       moveGroupTouchDrag(e);
     };
     const handleEnd = () => {
+      if (!groupTouchActiveRef.current) return;
       endGroupTouchDrag();
     };
     document.addEventListener("touchmove", handleMove as any, { passive: false });
@@ -1886,7 +1893,7 @@ export default function BudgetPage() {
       document.removeEventListener("touchend", handleEnd as any);
       document.removeEventListener("touchcancel", handleEnd as any);
     };
-  }, [groupTouchDraggingId]);
+  }, []);
 
   async function handleConfirm() {
     const action = confirmActionRef.current;
