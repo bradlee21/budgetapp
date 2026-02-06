@@ -16,6 +16,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type TouchEvent,
   type ReactNode,
   type ReactElement,
 } from "react";
@@ -318,7 +319,69 @@ function BudgetTable({
   actualLabel: string;
   remainingLabel: string;
 }) {
-  const showOrder = rows.some((r) => r.orderableCategoryId);
+  const touchDragTimerRef = useRef<number | null>(null);
+  const touchDragActiveRef = useRef(false);
+  const touchDragIdRef = useRef<string | null>(null);
+  const touchTargetIdRef = useRef<string | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [touchDraggingId, setTouchDraggingId] = useState<string | null>(null);
+
+  function clearTouchDragTimer() {
+    if (touchDragTimerRef.current) {
+      window.clearTimeout(touchDragTimerRef.current);
+      touchDragTimerRef.current = null;
+    }
+  }
+
+  function startTouchDrag(e: TouchEvent, id?: string) {
+    if (!id) return;
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    touchDragIdRef.current = id;
+    touchTargetIdRef.current = null;
+    clearTouchDragTimer();
+    touchDragTimerRef.current = window.setTimeout(() => {
+      touchDragActiveRef.current = true;
+      setTouchDraggingId(id);
+    }, 350);
+  }
+
+  function moveTouchDrag(e: TouchEvent) {
+    if (!touchStartRef.current) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - touchStartRef.current.x;
+    const dy = touch.clientY - touchStartRef.current.y;
+    if (!touchDragActiveRef.current && Math.abs(dx) + Math.abs(dy) > 8) {
+      clearTouchDragTimer();
+      return;
+    }
+    if (touchDragActiveRef.current) {
+      e.preventDefault();
+      const target = document
+        .elementFromPoint(touch.clientX, touch.clientY)
+        ?.closest("[data-dnd-id]") as HTMLElement | null;
+      if (target) {
+        touchTargetIdRef.current = target.dataset.dndId ?? null;
+      }
+    }
+  }
+
+  function endTouchDrag() {
+    clearTouchDragTimer();
+    if (touchDragActiveRef.current && touchDragIdRef.current) {
+      const targetId = touchTargetIdRef.current;
+      if (targetId && targetId !== touchDragIdRef.current) {
+        onDrop(targetId, touchDragIdRef.current);
+      }
+    }
+    touchDragActiveRef.current = false;
+    touchDragIdRef.current = null;
+    touchTargetIdRef.current = null;
+    touchStartRef.current = null;
+    setTouchDraggingId(null);
+  }
+
   return (
     <>
       <div className="space-y-2 sm:hidden">
@@ -330,12 +393,17 @@ function BudgetTable({
           rows.map((r) => (
             <SwipeRow
               key={r.id}
-              enabled={!!r.deletableCategoryId}
+              enabled={!!r.deletableCategoryId && !touchDraggingId}
               onDelete={() => onDeleteCategory(r.deletableCategoryId!)}
               deleteLabel="Delete"
             >
               <div
+                data-dnd-id={r.orderableCategoryId ?? undefined}
                 className="rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950 sm:p-3"
+                onTouchStart={(e) => startTouchDrag(e, r.orderableCategoryId)}
+                onTouchMove={moveTouchDrag}
+                onTouchEnd={endTouchDrag}
+                onTouchCancel={endTouchDrag}
                 onDragOver={
                   r.orderableCategoryId
                     ? (e) => {
@@ -416,25 +484,7 @@ function BudgetTable({
                       </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  {r.orderableCategoryId ? (
-                    <button
-                      type="button"
-                      title="Drag to reorder"
-                      aria-label="Drag to reorder"
-                      draggable
-                      onDragStart={(e) => {
-                        setDragCategoryId(r.orderableCategoryId!);
-                        e.dataTransfer.setData("text/plain", r.orderableCategoryId!);
-                        e.dataTransfer.effectAllowed = "move";
-                      }}
-                      onDragEnd={() => setDragCategoryId(null)}
-                      className="cursor-grab rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
-                    >
-                      ::
-                    </button>
-                  ) : null}
-                </div>
+                <div className="flex items-center gap-2" />
               </div>
 
               <div className="mt-2 grid grid-cols-2 gap-2 border-t border-zinc-200 pt-2 text-sm tabular-nums text-zinc-900 dark:border-zinc-800 dark:text-zinc-100 sm:mt-3">
@@ -501,7 +551,6 @@ function BudgetTable({
           <thead className="brand-table-head text-zinc-700 dark:text-zinc-300">
             <tr>
               <th className="p-2 text-left">Item</th>
-              {showOrder && <th className="p-2 text-right">Order</th>}
               <th className="p-2 text-right font-semibold text-zinc-900 dark:text-zinc-100">
                 {plannedLabel}
               </th>
@@ -518,7 +567,7 @@ function BudgetTable({
               <tr>
                 <td
                   className="p-2 text-zinc-600 dark:text-zinc-300"
-                  colSpan={showOrder ? 5 : 4}
+                  colSpan={4}
                 >
                   Nothing here yet.
                 </td>
@@ -528,6 +577,7 @@ function BudgetTable({
                 <tr
                   key={r.id}
                   className="group border-t border-zinc-200 dark:border-zinc-800"
+                  draggable={!!r.orderableCategoryId}
                   onContextMenu={
                     r.deletableCategoryId
                       ? (e) => {
@@ -535,6 +585,18 @@ function BudgetTable({
                           onDeleteCategory(r.deletableCategoryId!);
                         }
                       : undefined
+                  }
+                  onDragStart={
+                    r.orderableCategoryId
+                      ? (e) => {
+                          setDragCategoryId(r.orderableCategoryId!);
+                          e.dataTransfer.setData("text/plain", r.orderableCategoryId!);
+                          e.dataTransfer.effectAllowed = "move";
+                        }
+                      : undefined
+                  }
+                  onDragEnd={
+                    r.orderableCategoryId ? () => setDragCategoryId(null) : undefined
                   }
                   onDragOver={
                     r.orderableCategoryId
@@ -620,31 +682,6 @@ function BudgetTable({
                       </div>
                     )}
                   </td>
-                  {showOrder && (
-                    <td className="p-2 text-right">
-                      {r.orderableCategoryId ? (
-                        <div className="flex items-center justify-end">
-                          <button
-                            type="button"
-                            title="Drag to reorder"
-                            aria-label="Drag to reorder"
-                            draggable
-                            onDragStart={(e) => {
-                              setDragCategoryId(r.orderableCategoryId!);
-                              e.dataTransfer.setData("text/plain", r.orderableCategoryId!);
-                              e.dataTransfer.effectAllowed = "move";
-                            }}
-                            onDragEnd={() => setDragCategoryId(null)}
-                            className="cursor-grab rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 opacity-0 transition-opacity hover:bg-zinc-100 group-hover:opacity-100 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
-                          >
-                            ::
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-zinc-500">--</span>
-                      )}
-                    </td>
-                  )}
                   <td className="p-2 text-right tabular-nums">
                     {r.editable === false ? (
                       formatMoney(r.planned)
@@ -732,6 +769,12 @@ export default function BudgetPage() {
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
   const [editCategoryName, setEditCategoryName] = useState("");
   const [dragCategoryId, setDragCategoryId] = useState<string | null>(null);
+  const groupTouchTimerRef = useRef<number | null>(null);
+  const groupTouchActiveRef = useRef(false);
+  const groupTouchIdRef = useRef<string | null>(null);
+  const groupTouchTargetRef = useRef<string | null>(null);
+  const groupTouchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [groupTouchDraggingId, setGroupTouchDraggingId] = useState<string | null>(null);
   const [newGroupName, setNewGroupName] = useState({
     income: "",
     giving: "",
@@ -1729,6 +1772,62 @@ export default function BudgetPage() {
   function cancelEditPlanned() {
     setEditPlannedKey(null);
     setEditPlannedAmount("");
+  }
+
+  function clearGroupTouchTimer() {
+    if (groupTouchTimerRef.current) {
+      window.clearTimeout(groupTouchTimerRef.current);
+      groupTouchTimerRef.current = null;
+    }
+  }
+
+  function startGroupTouchDrag(e: TouchEvent, id?: string) {
+    if (!id) return;
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    groupTouchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    groupTouchIdRef.current = id;
+    groupTouchTargetRef.current = null;
+    clearGroupTouchTimer();
+    groupTouchTimerRef.current = window.setTimeout(() => {
+      groupTouchActiveRef.current = true;
+      setGroupTouchDraggingId(id);
+    }, 350);
+  }
+
+  function moveGroupTouchDrag(e: TouchEvent) {
+    if (!groupTouchStartRef.current) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - groupTouchStartRef.current.x;
+    const dy = touch.clientY - groupTouchStartRef.current.y;
+    if (!groupTouchActiveRef.current && Math.abs(dx) + Math.abs(dy) > 8) {
+      clearGroupTouchTimer();
+      return;
+    }
+    if (groupTouchActiveRef.current) {
+      e.preventDefault();
+      const target = document
+        .elementFromPoint(touch.clientX, touch.clientY)
+        ?.closest("[data-dnd-id]") as HTMLElement | null;
+      if (target) {
+        groupTouchTargetRef.current = target.dataset.dndId ?? null;
+      }
+    }
+  }
+
+  function endGroupTouchDrag() {
+    clearGroupTouchTimer();
+    if (groupTouchActiveRef.current && groupTouchIdRef.current) {
+      const targetId = groupTouchTargetRef.current;
+      if (targetId && targetId !== groupTouchIdRef.current) {
+        onDropCategory(targetId, groupTouchIdRef.current);
+      }
+    }
+    groupTouchActiveRef.current = false;
+    groupTouchIdRef.current = null;
+    groupTouchTargetRef.current = null;
+    groupTouchStartRef.current = null;
+    setGroupTouchDraggingId(null);
   }
 
   async function handleConfirm() {
@@ -3034,12 +3133,24 @@ export default function BudgetPage() {
                 {expenseGrouped.groups.map((group) => (
                   <SwipeRow
                     key={group.id}
-                    enabled
+                    enabled={!groupTouchDraggingId}
                     onDelete={() => removeCategory(group.id)}
                     deleteLabel="Delete group"
                   >
                     <div
+                      data-dnd-id={group.id}
                       className="rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950 sm:p-3"
+                      draggable
+                      onTouchStart={(e) => startGroupTouchDrag(e, group.id)}
+                      onTouchMove={moveGroupTouchDrag}
+                      onTouchEnd={endGroupTouchDrag}
+                      onTouchCancel={endGroupTouchDrag}
+                      onDragStart={(e) => {
+                        setDragCategoryId(group.id);
+                        e.dataTransfer.setData("text/plain", group.id);
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragEnd={() => setDragCategoryId(null)}
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -3060,21 +3171,6 @@ export default function BudgetPage() {
                       }}
                     >
                       <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          title="Drag to reorder group"
-                          aria-label="Drag to reorder group"
-                          draggable
-                          onDragStart={(e) => {
-                            setDragCategoryId(group.id);
-                            e.dataTransfer.setData("text/plain", group.id);
-                            e.dataTransfer.effectAllowed = "move";
-                          }}
-                          onDragEnd={() => setDragCategoryId(null)}
-                          className="cursor-grab rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-100 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
-                        >
-                          ::
-                        </button>
                         {editCategoryId === group.id ? (
                           <div className="flex flex-wrap items-center gap-2">
                             <input
