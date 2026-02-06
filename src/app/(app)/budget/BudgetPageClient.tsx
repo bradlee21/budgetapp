@@ -164,6 +164,10 @@ function SwipeRow({
       className="relative overflow-hidden"
       onTouchStart={(e) => {
         if (!enabled) return;
+        const target = e.target as HTMLElement | null;
+        if (offset !== 0 && target?.closest("[data-swipe-delete]")) {
+          return;
+        }
         if (offset !== 0) setOffset(0);
         const touch = e.touches[0];
         startXRef.current = touch.clientX;
@@ -199,9 +203,16 @@ function SwipeRow({
     >
       {enabled && (
         <button
+          data-swipe-delete
           onClick={() => {
             setOffset(0);
             onDelete();
+          }}
+          onTouchStart={(e) => {
+            e.stopPropagation();
+          }}
+          onTouchEnd={(e) => {
+            e.stopPropagation();
           }}
           className="absolute right-0 top-0 h-full w-20 bg-red-600 text-xs font-semibold text-white"
         >
