@@ -1409,8 +1409,10 @@ export default function BudgetPage() {
       .reduce((s, p) => s + p.amount, 0);
 
     const debtFallback = debtAccounts.reduce((sum, d) => {
-      const key = `DEBT::${d.id}`;
-      if (plannedMap.has(key)) return sum;
+      const debtKey = `DEBT::${d.id}`;
+      const ccKey = `CC::${d.id}`;
+      if (plannedMap.has(debtKey)) return sum;
+      if (d.debt_type === "credit_card" && plannedMap.has(ccKey)) return sum;
       return sum + (d.min_payment ?? 0);
     }, 0);
 
@@ -1534,7 +1536,15 @@ export default function BudgetPage() {
               creditCardCategoryIds.includes(p.category_id) &&
               p.credit_card_id === target.id
           )
-        : planRows.filter((p) => p.debt_account_id === target.id);
+        : planRows.filter((p) => {
+            if (p.debt_account_id === target.id) return true;
+            const debt = debtById.get(target.id);
+            if (debt?.debt_type !== "credit_card") return false;
+            return (
+              creditCardCategoryIds.includes(p.category_id) &&
+              p.credit_card_id === target.id
+            );
+          });
 
     let categoryId = "";
     let creditCardId: string | null = null;
@@ -2604,14 +2614,6 @@ export default function BudgetPage() {
     return { planned, actual, remaining };
   }
 
-  function cardRow(cardId: string) {
-    const key = `CC::${cardId}`;
-    const planned = plannedMap.get(key) ?? 0;
-    const actual = actualMap.get(key) ?? 0;
-    const remaining = planned - actual;
-    return { planned, actual, remaining };
-  }
-
   // Build section rows
   const incomeRows = buildFlatRows(incomeCats);
   const givingRows = buildFlatRows(givingCats);
@@ -2633,60 +2635,46 @@ export default function BudgetPage() {
   // Debt:
   // - per-card credit card payments (bucketed from ANY "credit card*" debt category)
   // - other debt categories shown normally, excluding the "credit card*" categories to avoid double-counting
-  const debtRows = [
-    ...cardLikeAccounts.map((cc) => {
-      const v = cardRow(cc.id);
-      return {
-        id: `CC::${cc.id}`,
-        label: `Credit Card Payment - ${cc.name}`,
-        extra: `Current balance: ${formatMoney(cc.balance)}`,
-        ...v,
-      };
-    }),
-    ...debtAccounts.map((d) => {
-      const key = `DEBT::${d.id}`;
-      const planned =
-        plannedMap.get(key) ??
-        (d.min_payment === null ? 0 : Number(d.min_payment));
-      const actual = actualMap.get(key) ?? 0;
-      const remaining = planned - actual;
-      return {
-        id: key,
-        label: d.name,
-        extra: (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-              {debtTypeLabel(d.debt_type)}
-            </span>
-            <span>Balance {formatMoney(d.balance)}</span>
-            <span>Min {d.min_payment === null ? "--" : formatMoney(d.min_payment)}</span>
-            <span>Paid {formatMoney(actual)}</span>
-            <span className={remainingColorClass(remaining)}>
-              Remaining {formatMoney(remaining)}
-            </span>
-            <span>APR {d.apr === null ? "--" : `${d.apr}%`}</span>
-            <span>Due {d.due_date ?? "--"}</span>
-          </div>
-        ),
-        planned,
-        actual,
-        remaining,
-        editable: true,
-        indent: 0,
-        orderableCategoryId: undefined,
-        deletableCategoryId: undefined,
-      };
-    }),
-  ];
+  const debtRows = Array.from(
+    new Map(debtAccounts.map((d) => [d.id, d])).values()
+  ).map((d) => {
+    const key = `DEBT::${d.id}`;
+    const ccKey = `CC::${d.id}`;
+    const plannedDirect = plannedMap.get(key);
+    const plannedCc = d.debt_type === "credit_card" ? plannedMap.get(ccKey) : undefined;
+    const planned =
+      plannedDirect ??
+      plannedCc ??
+      (d.min_payment === null ? 0 : Number(d.min_payment));
+    const actualDirect = actualMap.get(key);
+    const actualCc = d.debt_type === "credit_card" ? actualMap.get(ccKey) : undefined;
+    const actual = actualDirect ?? actualCc ?? 0;
+    const remaining = planned - actual;
+    return {
+      id: key,
+      label: d.name,
+      extra: (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+            {debtTypeLabel(d.debt_type)}
+          </span>
+          <span>Balance {formatMoney(d.balance)}</span>
+          <span>Min {d.min_payment === null ? "--" : formatMoney(d.min_payment)}</span>
+          <span>APR {d.apr === null ? "--" : `${d.apr}%`}</span>
+          <span>Due {d.due_date ?? "--"}</span>
+        </div>
+      ),
+      planned,
+      actual,
+      remaining,
+      editable: true,
+      indent: 0,
+      orderableCategoryId: undefined,
+      deletableCategoryId: undefined,
+    };
+  });
   const debtTotals = totalsForRows(debtRows);
 
-
-  const ccCategoryLabel = useMemo(() => {
-    if (creditCardCategoryIds.length === 0) return "";
-    // show the first matching category name for reference
-    const c = categories.find((x) => x.id === primaryCreditCardCategoryId);
-    return c?.name ?? "";
-  }, [creditCardCategoryIds.length, categories, primaryCreditCardCategoryId]);
 
   async function signOutUser() {
     setMsg("");
@@ -3379,22 +3367,6 @@ export default function BudgetPage() {
                 actualLabel="Paid"
                 remainingLabel="Remaining"
               />
-              <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-                Credit card payments are shown per card. We treat any Debt category containing{" "}
-                <span className="font-semibold">"credit card"</span> as a credit card payment bucket.
-                {ccCategoryLabel ? (
-                  <>
-                    {" "}
-                    Your current category is:{" "}
-                    <span className="font-semibold">{ccCategoryLabel}</span>.
-                  </>
-                ) : (
-                  <>
-                    {" "}
-                    Create a Debt category named "Credit Card" or "Credit Card Payment".
-                  </>
-                )}
-              </div>
             </Section>
 
 
