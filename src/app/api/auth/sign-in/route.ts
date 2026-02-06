@@ -3,7 +3,11 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import type { NextRequest } from "next/server";
 
 export async function POST(request: NextRequest) {
-  const response = NextResponse.json({ ok: false }, { status: 200 });
+  const cookieQueue: Array<{
+    name: string;
+    value: string;
+    options: CookieOptions;
+  }> = [];
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -19,24 +23,13 @@ export async function POST(request: NextRequest) {
         return request.cookies.get(name)?.value;
       },
       set(name: string, value: string, options: CookieOptions) {
-        response.cookies.set({
-          name,
-          value,
-          ...options,
-          httpOnly: true,
-          sameSite: "lax",
-          secure: process.env.NODE_ENV === "production",
-        });
+        cookieQueue.push({ name, value, options });
       },
       remove(name: string, options: CookieOptions) {
-        response.cookies.set({
+        cookieQueue.push({
           name,
           value: "",
-          ...options,
-          maxAge: 0,
-          httpOnly: true,
-          sameSite: "lax",
-          secure: process.env.NODE_ENV === "production",
+          options: { ...options, maxAge: 0 },
         });
       },
     },
@@ -60,5 +53,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 401 });
   }
 
-  return NextResponse.json({ ok: true, user: data.user }, { status: 200 });
+  const response = NextResponse.json({ ok: true, user: data.user }, { status: 200 });
+  cookieQueue.forEach(({ name, value, options }) => {
+    response.cookies.set({
+      name,
+      value,
+      ...options,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+  });
+  return response;
 }
