@@ -627,7 +627,6 @@ export default function BudgetPage() {
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [monthOffset, setMonthOffset] = useState(0);
-  const [mobileTab, setMobileTab] = useState<"budget" | "transactions">("budget");
 
   const [showDebug, setShowDebug] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
@@ -954,6 +953,31 @@ export default function BudgetPage() {
     );
   }
 
+  function sortCategories(list: Category[]) {
+    return list
+      .slice()
+      .sort(
+        (a, b) =>
+          a.group_name.localeCompare(b.group_name) ||
+          a.sort_order - b.sort_order ||
+          a.name.localeCompare(b.name)
+      );
+  }
+
+  function hasCreditCardCategory(list: Category[]) {
+    const byId = new Map(list.map((c) => [c.id, c]));
+    return list.some((c) => {
+      if (c.group_name !== "debt") return false;
+      const name = c.name.toLowerCase();
+      if (name.includes("credit card")) return true;
+      if (c.parent_id) {
+        const parent = byId.get(c.parent_id);
+        return !!parent && parent.name.toLowerCase().includes("credit card");
+      }
+      return false;
+    });
+  }
+
   async function fetchActiveCategories() {
     const { data, error } = await supabase
       .from("categories")
@@ -998,6 +1022,27 @@ export default function BudgetPage() {
       let nextCats = await fetchActiveCategories();
       if (nextCats.length === 0) {
         nextCats = await ensureSeeded(u.user.id);
+      }
+      if (!hasCreditCardCategory(nextCats)) {
+        const nextOrder =
+          nextCats
+            .filter((c) => c.group_name === "debt")
+            .reduce((max, c) => Math.max(max, c.sort_order), 0) + 1;
+        const { data: created, error: createErr } = await supabase
+          .from("categories")
+          .insert({
+            user_id: u.user.id,
+            group_name: "debt",
+            name: "Credit Card",
+            parent_id: null,
+            sort_order: nextOrder,
+          })
+          .select("id, group_name, name, parent_id, sort_order, is_archived")
+          .single();
+        if (createErr && !isDuplicateCategoryError(createErr)) throw createErr;
+        if (created) {
+          nextCats = sortCategories([...nextCats, created as Category]);
+        }
       }
       setCategories(nextCats);
 
@@ -2607,29 +2652,6 @@ export default function BudgetPage() {
           </div>
         )}
 
-        <div className="mt-4 flex gap-2 lg:hidden">
-          <button
-            onClick={() => setMobileTab("budget")}
-            className={`rounded-md border px-3 py-2 text-sm ${
-              mobileTab === "budget"
-                ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                : "border-zinc-300 bg-white text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-            }`}
-          >
-            Budget
-          </button>
-          <button
-            onClick={() => setMobileTab("transactions")}
-            className={`rounded-md border px-3 py-2 text-sm ${
-              mobileTab === "transactions"
-                ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                : "border-zinc-300 bg-white text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-            }`}
-          >
-            Transactions
-          </button>
-        </div>
-
         <div className="mt-8 grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)_320px]">
           <aside className="hidden lg:block">
             <div className="sticky top-20 space-y-4">
@@ -2721,7 +2743,7 @@ export default function BudgetPage() {
             </div>
           </aside>
 
-          <div className={mobileTab === "budget" ? "" : "hidden lg:block"}>
+          <div>
             <div className="mb-4 space-y-3 lg:hidden">
               <div className="grid gap-3">
                 <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
@@ -3569,11 +3591,7 @@ export default function BudgetPage() {
             </section>
           </div>
 
-          <aside
-            className={`space-y-4 lg:sticky lg:top-6 lg:self-start ${
-              mobileTab === "transactions" ? "" : "hidden lg:block"
-            }`}
-          >
+          <aside className="hidden space-y-4 lg:sticky lg:top-6 lg:self-start lg:block">
             <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
               <h2 className="text-lg font-semibold">Add transaction</h2>
               <div className="mt-4 grid gap-3">

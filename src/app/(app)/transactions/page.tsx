@@ -41,6 +41,40 @@ type Txn = {
   debt_account_id: string | null;
 };
 
+function sortCategories(list: Category[]) {
+  return list
+    .slice()
+    .sort(
+      (a, b) =>
+        a.group_name.localeCompare(b.group_name) ||
+        a.sort_order - b.sort_order ||
+        a.name.localeCompare(b.name)
+    );
+}
+
+function isDuplicateCategoryError(err: any) {
+  const msg = String(err?.message ?? err ?? "");
+  return (
+    err?.code === "23505" ||
+    msg.includes("categories_unique_user_group_parent_lowername") ||
+    msg.includes("duplicate key value")
+  );
+}
+
+function hasCreditCardCategory(list: Category[]) {
+  const byId = new Map(list.map((c) => [c.id, c]));
+  return list.some((c) => {
+    if (c.group_name !== "debt") return false;
+    const name = c.name.toLowerCase();
+    if (name.includes("credit card")) return true;
+    if (c.parent_id) {
+      const parent = byId.get(c.parent_id);
+      return !!parent && parent.name.toLowerCase().includes("credit card");
+    }
+    return false;
+  });
+}
+
 function SwipeRow({
   enabled,
   onDelete,
@@ -300,7 +334,29 @@ export default function TransactionsPage() {
         .order("name", { ascending: true });
 
       if (catErr) throw catErr;
-      setCategories((cats ?? []) as Category[]);
+      let nextCats = (cats ?? []) as Category[];
+      if (!hasCreditCardCategory(nextCats)) {
+        const nextOrder =
+          nextCats
+            .filter((c) => c.group_name === "debt")
+            .reduce((max, c) => Math.max(max, c.sort_order), 0) + 1;
+        const { data: created, error: createErr } = await supabase
+          .from("categories")
+          .insert({
+            user_id: u.user.id,
+            group_name: "debt",
+            name: "Credit Card",
+            parent_id: null,
+            sort_order: nextOrder,
+          })
+          .select("id, group_name, name, parent_id, sort_order, is_archived")
+          .single();
+        if (createErr && !isDuplicateCategoryError(createErr)) throw createErr;
+        if (created) {
+          nextCats = [...nextCats, created as Category];
+        }
+      }
+      setCategories(sortCategories(nextCats));
 
       const { data: cc, error: ccErr } = await supabase
         .from("credit_cards")
