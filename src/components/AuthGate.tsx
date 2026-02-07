@@ -13,7 +13,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
     (async () => {
       try {
-        const res = await fetch("/api/auth/session", { cache: "no-store" });
+        const res = await fetch("/api/auth/session", {
+          cache: "no-store",
+          credentials: "include",
+        });
         if (!res.ok) {
           router.replace("/login");
           return;

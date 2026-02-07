@@ -804,6 +804,7 @@ export default function BudgetPage() {
   const [nextStepOpen, setNextStepOpen] = useState(false);
   const [nextStepTone, setNextStepTone] = useState<NextStepTone>("guided");
   const [nextStepEncouragement, setNextStepEncouragement] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
 
   const [userId, setUserId] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -867,6 +868,33 @@ export default function BudgetPage() {
   }, [nextStepTone, nextStepEncouragement]);
 
   const [txnDate, setTxnDate] = useState(toYMD(new Date()));
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/session", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const session = data?.session;
+          if (session?.access_token && session?.refresh_token) {
+            await supabase.auth.setSession({
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+            });
+          }
+        }
+      } finally {
+        if (mounted) setAuthReady(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
   const [txnAmount, setTxnAmount] = useState("");
   const [txnCategoryId, setTxnCategoryId] = useState("");
   const [txnCardSelectId, setTxnCardSelectId] = useState("");
@@ -1219,35 +1247,43 @@ export default function BudgetPage() {
     return run;
   }
 
+  async function ensureAuthedUser() {
+    const { data: existing } = await supabase.auth.getUser();
+    if (existing.user) return existing.user;
+    try {
+      const res = await fetch("/api/auth/session", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const session = data?.session;
+      if (session?.access_token && session?.refresh_token) {
+        await supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+        const { data: refreshed } = await supabase.auth.getUser();
+        return refreshed.user ?? null;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
   async function loadAll() {
+    if (!authReady) return;
     setMsg("");
     setLoading(true);
     try {
-      let { data: u } = await supabase.auth.getUser();
-      if (!u.user) {
-        const res = await fetch("/api/auth/session", {
-          cache: "no-store",
-          credentials: "include",
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const session = data?.session;
-          if (session?.access_token && session?.refresh_token) {
-            await supabase.auth.setSession({
-              access_token: session.access_token,
-              refresh_token: session.refresh_token,
-            });
-            const refreshed = await supabase.auth.getUser();
-            u = refreshed.data;
-          }
-        }
-      }
-      if (!u.user) return;
-      setUserId(u.user.id);
+      const user = await ensureAuthedUser();
+      if (!user) return;
+      setUserId(user.id);
 
       let nextCats = await fetchActiveCategories();
       if (nextCats.length === 0) {
-        nextCats = await ensureSeeded(u.user.id);
+        nextCats = await ensureSeeded(user.id);
       }
       if (!hasCreditCardCategory(nextCats)) {
         const nextOrder =
@@ -1257,7 +1293,7 @@ export default function BudgetPage() {
         const { data: created, error: createErr } = await supabase
           .from("categories")
           .insert({
-            user_id: u.user.id,
+            user_id: user.id,
             group_name: "debt",
             name: "Credit Card",
             parent_id: null,
@@ -1316,7 +1352,7 @@ export default function BudgetPage() {
       const { data: plan, error: planErr } = await supabase
         .from("planned_items")
         .select("id, type, category_id, credit_card_id, debt_account_id, name, amount")
-        .eq("user_id", u.user.id)
+        .eq("user_id", user.id)
         .eq("month", monthKey);
 
       if (planErr) throw planErr;
@@ -1336,7 +1372,7 @@ export default function BudgetPage() {
       const { data: t, error: txErr } = await supabase
         .from("transactions")
         .select("id, category_id, credit_card_id, debt_account_id, amount, date, name")
-        .eq("user_id", u.user.id)
+        .eq("user_id", user.id)
         .gte("date", start)
         .lt("date", end);
 
@@ -1361,9 +1397,10 @@ export default function BudgetPage() {
   }
 
   useEffect(() => {
+    if (!authReady) return;
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monthKey, start, end]);
+  }, [authReady, monthKey, start, end]);
 
   async function syncBudgetMonth() {
     if (!userId) return;
