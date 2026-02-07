@@ -2,7 +2,10 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/manifest.webmanifest", "/sw.js"];
+
+const PUBLIC_FILE_REGEX =
+  /\.(?:css|js|map|json|txt|png|jpg|jpeg|svg|ico|webmanifest)$/i;
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some(
@@ -19,6 +22,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/icons") ||
     pathname.startsWith("/manifest") ||
+    pathname.startsWith("/sw.js") ||
+    PUBLIC_FILE_REGEX.test(pathname) ||
     pathname.endsWith(".png") ||
     pathname.endsWith(".jpg") ||
     pathname.endsWith(".svg") ||
