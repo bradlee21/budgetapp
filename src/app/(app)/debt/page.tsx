@@ -32,47 +32,19 @@ export default function DebtPage() {
     [cards]
   );
 
-  async function ensureAuthedUser() {
-    const { data: existing } = await supabase.auth.getUser();
-    if (existing.user) return existing.user;
-    try {
-      const res = await fetch("/api/auth/session", {
-        cache: "no-store",
-        credentials: "include",
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      const session = data?.session;
-      if (session?.access_token && session?.refresh_token) {
-        await supabase.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        });
-        const { data: refreshed } = await supabase.auth.getUser();
-        return refreshed.user ?? null;
-      }
-    } catch {
-      return null;
-    }
-    return null;
-  }
-
   async function loadCards() {
     setMsg("");
     setLoading(true);
     try {
-      const user = await ensureAuthedUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from("credit_cards")
-        .select("id, name, apr, current_balance, min_payment")
-        .order("name", { ascending: true });
-
-      if (error) throw error;
+      const res = await fetch("/api/budget/credit-cards", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to load credit cards.");
 
       setCards(
-        (data ?? []).map((c: any) => ({
+        (data?.creditCards ?? []).map((c: any) => ({
           id: c.id,
           name: c.name,
           apr: c.apr === null ? null : Number(c.apr),

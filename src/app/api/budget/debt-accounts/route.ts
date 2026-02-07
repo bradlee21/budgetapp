@@ -149,3 +149,32 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export async function GET(request: NextRequest) {
+  try {
+    const { supabase, applyCookies } = createSupabaseServerClient(request);
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser();
+    if (userErr || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data, error } = await supabase
+      .from("debt_accounts")
+      .select("id, name, debt_type, balance, apr, min_payment, due_date")
+      .order("name", { ascending: true });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    const response = NextResponse.json({ debtAccounts: data ?? [] }, { status: 200 });
+    applyCookies(response);
+    return response;
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message ?? "Server error." },
+      { status: 500 }
+    );
+  }
+}

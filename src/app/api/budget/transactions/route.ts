@@ -77,6 +77,78 @@ async function adjustDebt(
   if (upErr) throw upErr;
 }
 
+export async function GET(request: NextRequest) {
+  try {
+    const { supabase, applyCookies } = createSupabaseServerClient(request);
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser();
+    if (userErr || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const start = request.nextUrl.searchParams.get("start");
+    const end = request.nextUrl.searchParams.get("end");
+
+    const { data: cats, error: catErr } = await supabase
+      .from("categories")
+      .select("id, group_name, name, parent_id, sort_order, is_archived")
+      .or("is_archived.is.null,is_archived.eq.false")
+      .order("group_name", { ascending: true })
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
+    if (catErr) {
+      return NextResponse.json({ error: catErr.message }, { status: 500 });
+    }
+
+    const { data: cards, error: ccErr } = await supabase
+      .from("credit_cards")
+      .select("id, name, current_balance")
+      .order("name", { ascending: true });
+    if (ccErr) {
+      return NextResponse.json({ error: ccErr.message }, { status: 500 });
+    }
+
+    const { data: debts, error: debtErr } = await supabase
+      .from("debt_accounts")
+      .select("id, name, debt_type, balance, apr, min_payment, due_date")
+      .order("name", { ascending: true });
+    if (debtErr) {
+      return NextResponse.json({ error: debtErr.message }, { status: 500 });
+    }
+
+    let txQuery = supabase
+      .from("transactions")
+      .select("id, date, name, amount, category_id, credit_card_id, debt_account_id")
+      .eq("user_id", user.id)
+      .order("date", { ascending: false });
+    if (start) txQuery = txQuery.gte("date", start);
+    if (end) txQuery = txQuery.lt("date", end);
+    const { data: txns, error: txErr } = await txQuery;
+    if (txErr) {
+      return NextResponse.json({ error: txErr.message }, { status: 500 });
+    }
+
+    const response = NextResponse.json(
+      {
+        categories: cats ?? [],
+        creditCards: cards ?? [],
+        debtAccounts: debts ?? [],
+        transactions: txns ?? [],
+      },
+      { status: 200 }
+    );
+    applyCookies(response);
+    return response;
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message ?? "Server error." },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { supabase, applyCookies } = createSupabaseServerClient(request);

@@ -406,19 +406,16 @@ export default function TransactionsPage() {
     setMsg("");
     setLoading(true);
     try {
-      const user = await ensureAuthedUser();
-      if (!user) return;
+      const res = await fetch(
+        `/api/budget/transactions?start=${encodeURIComponent(
+          start
+        )}&end=${encodeURIComponent(end)}`,
+        { cache: "no-store", credentials: "include" }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to load transactions.");
 
-      const { data: cats, error: catErr } = await supabase
-        .from("categories")
-        .select("id, group_name, name, parent_id, sort_order, is_archived")
-        .or("is_archived.is.null,is_archived.eq.false")
-        .order("group_name", { ascending: true })
-        .order("sort_order", { ascending: true })
-        .order("name", { ascending: true });
-
-      if (catErr) throw catErr;
-      let nextCats = (cats ?? []) as Category[];
+      let nextCats = (data?.categories ?? []) as Category[];
       if (!hasCreditCardCategory(nextCats)) {
         const ensureRes = await fetch("/api/budget/categories", {
           method: "POST",
@@ -438,27 +435,16 @@ export default function TransactionsPage() {
       }
       setCategories(sortCategories(nextCats));
 
-      const { data: cc, error: ccErr } = await supabase
-        .from("credit_cards")
-        .select("id, name, current_balance")
-        .order("name", { ascending: true });
-
-      if (ccErr) throw ccErr;
       setCards(
-        (cc ?? []).map((c: any) => ({
+        (data?.creditCards ?? []).map((c: any) => ({
           id: c.id,
           name: c.name,
           current_balance: Number(c.current_balance),
         }))
       );
 
-      const { data: debts, error: debtErr } = await supabase
-        .from("debt_accounts")
-        .select("id, name, debt_type, balance, apr, min_payment, due_date")
-        .order("name", { ascending: true });
-      if (debtErr) throw debtErr;
       setDebtAccounts(
-        (debts ?? []).map((d: any) => ({
+        (data?.debtAccounts ?? []).map((d: any) => ({
           id: d.id,
           name: d.name,
           debt_type: (d.debt_type ?? "credit_card") as DebtAccount["debt_type"],
@@ -469,18 +455,8 @@ export default function TransactionsPage() {
         }))
       );
 
-      const { data: rows, error: txErr } = await supabase
-        .from("transactions")
-        .select("id, date, name, amount, category_id, credit_card_id, debt_account_id")
-        .eq("user_id", user.id)
-        .gte("date", start)
-        .lt("date", end)
-        .order("date", { ascending: false });
-
-      if (txErr) throw txErr;
-
       setTxns(
-        (rows ?? []).map((t: any) => ({
+        (data?.transactions ?? []).map((t: any) => ({
           id: t.id,
           date: t.date,
           name: t.name ?? null,
@@ -505,9 +481,6 @@ export default function TransactionsPage() {
   async function addTxn() {
     setMsg("");
     try {
-      const user = await ensureAuthedUser();
-      if (!user) return;
-
       const amt = Number(amount);
       if (!date) throw new Error("Pick a date.");
       if (!Number.isFinite(amt)) throw new Error("Enter a valid amount.");

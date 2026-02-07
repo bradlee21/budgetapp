@@ -160,44 +160,18 @@ export default function DebtAccountsPage() {
   });
   const confirmActionRef = useRef<null | (() => Promise<void>)>(null);
 
-  async function ensureAuthedUser() {
-    const { data: existing } = await supabase.auth.getUser();
-    if (existing.user) return existing.user;
-    try {
-      const res = await fetch("/api/auth/session", {
-        cache: "no-store",
-        credentials: "include",
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      const session = data?.session;
-      if (session?.access_token && session?.refresh_token) {
-        await supabase.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        });
-        const { data: refreshed } = await supabase.auth.getUser();
-        return refreshed.user ?? null;
-      }
-    } catch {
-      return null;
-    }
-    return null;
-  }
-
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        const user = await ensureAuthedUser();
-        if (!user) return;
-        const { data, error } = await supabase
-          .from("debt_accounts")
-          .select("id, name, debt_type, balance, apr, min_payment, due_date")
-          .order("name", { ascending: true });
-        if (error) throw error;
+        const res = await fetch("/api/budget/debt-accounts", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error ?? "Failed to load debt accounts.");
         setDebtAccounts(
-          (data ?? []).map((d: any) => ({
+          (data?.debtAccounts ?? []).map((d: any) => ({
             id: d.id,
             name: d.name,
             debt_type: (d.debt_type ?? "credit_card") as DebtAccount["debt_type"],

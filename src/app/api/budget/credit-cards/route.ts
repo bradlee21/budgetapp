@@ -117,3 +117,32 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export async function GET(request: NextRequest) {
+  try {
+    const { supabase, applyCookies } = createSupabaseServerClient(request);
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser();
+    if (userErr || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data, error } = await supabase
+      .from("credit_cards")
+      .select("id, name, apr, current_balance, min_payment")
+      .order("name", { ascending: true });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    const response = NextResponse.json({ creditCards: data ?? [] }, { status: 200 });
+    applyCookies(response);
+    return response;
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message ?? "Server error." },
+      { status: 500 }
+    );
+  }
+}
