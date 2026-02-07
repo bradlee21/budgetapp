@@ -47,17 +47,42 @@ export default function ReportsPage() {
     return map;
   }, [categories]);
 
+  async function ensureAuthedUser() {
+    const { data: existing } = await supabase.auth.getUser();
+    if (existing.user) return existing.user;
+    try {
+      const res = await fetch("/api/auth/session", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const session = data?.session;
+      if (session?.access_token && session?.refresh_token) {
+        await supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+        const { data: refreshed } = await supabase.auth.getUser();
+        return refreshed.user ?? null;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
   async function loadAll() {
     setMsg("");
     setLoading(true);
     try {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return;
+      const user = await ensureAuthedUser();
+      if (!user) return;
 
       const { data: cats, error: catErr } = await supabase
         .from("categories")
         .select("id, group_name, name, is_archived")
-        .eq("is_archived", false)
+        .or("is_archived.is.null,is_archived.eq.false")
         .order("group_name", { ascending: true })
         .order("name", { ascending: true });
       if (catErr) throw catErr;
@@ -66,7 +91,7 @@ export default function ReportsPage() {
       const { data: rows, error: txErr } = await supabase
         .from("transactions")
         .select("amount, category_id, date")
-        .eq("user_id", u.user.id)
+        .eq("user_id", user.id)
         .gte("date", start)
         .lt("date", end);
       if (txErr) throw txErr;

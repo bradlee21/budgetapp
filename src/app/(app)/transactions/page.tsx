@@ -377,12 +377,37 @@ export default function TransactionsPage() {
     return catName;
   }
 
+  async function ensureAuthedUser() {
+    const { data: existing } = await supabase.auth.getUser();
+    if (existing.user) return existing.user;
+    try {
+      const res = await fetch("/api/auth/session", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const session = data?.session;
+      if (session?.access_token && session?.refresh_token) {
+        await supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+        const { data: refreshed } = await supabase.auth.getUser();
+        return refreshed.user ?? null;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
   async function loadAll() {
     setMsg("");
     setLoading(true);
     try {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return;
+      const user = await ensureAuthedUser();
+      if (!user) return;
 
       const { data: cats, error: catErr } = await supabase
         .from("categories")
@@ -447,7 +472,7 @@ export default function TransactionsPage() {
       const { data: rows, error: txErr } = await supabase
         .from("transactions")
         .select("id, date, name, amount, category_id, credit_card_id, debt_account_id")
-        .eq("user_id", u.user.id)
+        .eq("user_id", user.id)
         .gte("date", start)
         .lt("date", end)
         .order("date", { ascending: false });
@@ -480,8 +505,8 @@ export default function TransactionsPage() {
   async function addTxn() {
     setMsg("");
     try {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return;
+      const user = await ensureAuthedUser();
+      if (!user) return;
 
       const amt = Number(amount);
       if (!date) throw new Error("Pick a date.");
@@ -670,13 +695,13 @@ export default function TransactionsPage() {
         throw new Error("No credit card payment categories found.");
       }
 
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return;
+      const user = await ensureAuthedUser();
+      if (!user) return;
 
       const { data: rows, error } = await supabase
         .from("transactions")
         .select("credit_card_id, amount, category_id")
-        .eq("user_id", u.user.id)
+        .eq("user_id", user.id)
         .in("category_id", creditCardCategoryIds);
       if (error) throw error;
 
