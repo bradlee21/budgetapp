@@ -1277,15 +1277,23 @@ export default function BudgetPage() {
     setMsg("");
     setLoading(true);
     try {
-      const user = await ensureAuthedUser();
-      if (!user) return;
-      setUserId(user.id);
-
-      let nextCats = await fetchActiveCategories();
-      if (nextCats.length === 0) {
-        nextCats = await ensureSeeded(user.id);
+      const bootstrapRes = await fetch(
+        `/api/budget/bootstrap?month=${encodeURIComponent(
+          monthKey
+        )}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
+        { cache: "no-store", credentials: "include" }
+      );
+      if (!bootstrapRes.ok) {
+        throw new Error("Failed to load budget data.");
       }
-      if (!hasCreditCardCategory(nextCats)) {
+      const bootstrap = await bootstrapRes.json();
+      setUserId(bootstrap.userId ?? null);
+
+      let nextCats = (bootstrap.categories ?? []) as Category[];
+      if (nextCats.length === 0 && bootstrap.userId) {
+        nextCats = await ensureSeeded(bootstrap.userId);
+      }
+      if (!hasCreditCardCategory(nextCats) && bootstrap.userId) {
         const nextOrder =
           nextCats
             .filter((c) => c.group_name === "debt")
@@ -1293,7 +1301,7 @@ export default function BudgetPage() {
         const { data: created, error: createErr } = await supabase
           .from("categories")
           .insert({
-            user_id: user.id,
+            user_id: bootstrap.userId,
             group_name: "debt",
             name: "Credit Card",
             parent_id: null,
@@ -1308,37 +1316,18 @@ export default function BudgetPage() {
       }
       setCategories(nextCats);
 
-      const { data: archived, error: archErr } = await supabase
-        .from("categories")
-        .select("id, group_name, name, parent_id, sort_order, is_archived")
-        .eq("is_archived", true)
-        .order("group_name", { ascending: true })
-        .order("name", { ascending: true });
-      if (archErr) throw archErr;
-      setArchivedCategories((archived ?? []) as Category[]);
-
-      const { data: cc, error: ccErr } = await supabase
-        .from("credit_cards")
-        .select("id, name, current_balance")
-        .order("name", { ascending: true });
-
-      if (ccErr) throw ccErr;
+      setArchivedCategories((bootstrap.archivedCategories ?? []) as Category[]);
 
       setCards(
-        (cc ?? []).map((c: any) => ({
+        (bootstrap.creditCards ?? []).map((c: any) => ({
           id: c.id,
           name: c.name,
           current_balance: Number(c.current_balance),
         }))
       );
 
-      const { data: debts, error: debtErr } = await supabase
-        .from("debt_accounts")
-        .select("id, name, debt_type, balance, apr, min_payment, due_date")
-        .order("name", { ascending: true });
-      if (debtErr) throw debtErr;
       setDebtAccounts(
-        (debts ?? []).map((d: any) => ({
+        (bootstrap.debtAccounts ?? []).map((d: any) => ({
           id: d.id,
           name: d.name,
           debt_type: (d.debt_type ?? "credit_card") as DebtAccount["debt_type"],
@@ -1349,16 +1338,8 @@ export default function BudgetPage() {
         }))
       );
 
-      const { data: plan, error: planErr } = await supabase
-        .from("planned_items")
-        .select("id, type, category_id, credit_card_id, debt_account_id, name, amount")
-        .eq("user_id", user.id)
-        .eq("month", monthKey);
-
-      if (planErr) throw planErr;
-
       setPlanRows(
-        (plan ?? []).map((p: any) => ({
+        (bootstrap.plannedItems ?? []).map((p: any) => ({
           id: p.id,
           type: p.type,
           category_id: p.category_id,
@@ -1369,17 +1350,8 @@ export default function BudgetPage() {
         }))
       );
 
-      const { data: t, error: txErr } = await supabase
-        .from("transactions")
-        .select("id, category_id, credit_card_id, debt_account_id, amount, date, name")
-        .eq("user_id", user.id)
-        .gte("date", start)
-        .lt("date", end);
-
-      if (txErr) throw txErr;
-
       setTxns(
-        (t ?? []).map((x: any) => ({
+        (bootstrap.transactions ?? []).map((x: any) => ({
           id: x.id,
           name: x.name ?? null,
           category_id: x.category_id ?? null,
@@ -1389,6 +1361,8 @@ export default function BudgetPage() {
           date: x.date,
         }))
       );
+
+      setBudgetMonth((bootstrap.budgetMonth ?? null) as BudgetMonth | null);
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
     } finally {
