@@ -1,7 +1,6 @@
 "use client";
 
 import AuthGate from "@/components/AuthGate";
-import { supabase } from "@/lib/supabaseClient";
 import { addMonths, firstDayOfMonth, nextMonth, toYMD } from "@/lib/date";
 import { formatMoney } from "@/lib/format";
 import { useEffect, useMemo, useState } from "react";
@@ -47,57 +46,22 @@ export default function ReportsPage() {
     return map;
   }, [categories]);
 
-  async function ensureAuthedUser() {
-    const { data: existing } = await supabase.auth.getUser();
-    if (existing.user) return existing.user;
-    try {
-      const res = await fetch("/api/auth/session", {
-        cache: "no-store",
-        credentials: "include",
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      const session = data?.session;
-      if (session?.access_token && session?.refresh_token) {
-        await supabase.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        });
-        const { data: refreshed } = await supabase.auth.getUser();
-        return refreshed.user ?? null;
-      }
-    } catch {
-      return null;
-    }
-    return null;
-  }
-
   async function loadAll() {
     setMsg("");
     setLoading(true);
     try {
-      const user = await ensureAuthedUser();
-      if (!user) return;
+      const res = await fetch(
+        `/api/budget/transactions?start=${encodeURIComponent(
+          start
+        )}&end=${encodeURIComponent(end)}`,
+        { cache: "no-store", credentials: "include" }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to load reports data.");
 
-      const { data: cats, error: catErr } = await supabase
-        .from("categories")
-        .select("id, group_name, name, is_archived")
-        .or("is_archived.is.null,is_archived.eq.false")
-        .order("group_name", { ascending: true })
-        .order("name", { ascending: true });
-      if (catErr) throw catErr;
-      setCategories((cats ?? []) as Category[]);
-
-      const { data: rows, error: txErr } = await supabase
-        .from("transactions")
-        .select("amount, category_id, date")
-        .eq("user_id", user.id)
-        .gte("date", start)
-        .lt("date", end);
-      if (txErr) throw txErr;
-
+      setCategories((data?.categories ?? []) as Category[]);
       setTxns(
-        (rows ?? []).map((r: any) => ({
+        (data?.transactions ?? []).map((r: any) => ({
           amount: Number(r.amount),
           category_id: r.category_id ?? null,
           date: r.date,

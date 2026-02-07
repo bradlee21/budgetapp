@@ -2,7 +2,6 @@
 
 import AuthGate from "@/components/AuthGate";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
 import {
   addMonths,
   firstDayOfMonth,
@@ -96,131 +95,52 @@ export default function DashboardPage() {
     return d.toLocaleString(undefined, { month: "long", year: "numeric" });
   }, [monthOffset]);
 
-  async function ensureAuthedUser() {
-    const { data: existing } = await supabase.auth.getUser();
-    if (existing.user) return existing.user;
-    try {
-      const res = await fetch("/api/auth/session", {
-        cache: "no-store",
-        credentials: "include",
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      const session = data?.session;
-      if (session?.access_token && session?.refresh_token) {
-        await supabase.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        });
-        const { data: refreshed } = await supabase.auth.getUser();
-        return refreshed.user ?? null;
-      }
-    } catch {
-      return null;
-    }
-    return null;
-  }
-
-  async function loadActualTotals() {
-    setMsg("");
-
-    const user = await ensureAuthedUser();
-    if (!user) return;
-
-    const { data: cats, error: catErr } = await supabase
-      .from("categories")
-      .select("id, group_name, is_archived")
-      .in("group_name", ["income", "expense"])
-      .eq("is_archived", false);
-
-    if (catErr) {
-      setMsg(catErr.message);
-      return;
-    }
-
-    const incomeCatIds = (cats ?? [])
-      .filter((c: any) => c.group_name === "income")
-      .map((c: any) => c.id);
-
-    const expenseCatIds = (cats ?? [])
-      .filter((c: any) => c.group_name === "expense")
-      .map((c: any) => c.id);
-
-    // Income
-    if (incomeCatIds.length > 0) {
-      const { data: tx, error } = await supabase
-        .from("transactions")
-        .select("amount")
-        .eq("user_id", user.id)
-        .gte("date", monthStart)
-        .lt("date", monthEnd)
-        .in("category_id", incomeCatIds);
-
-      if (error) {
-        setMsg(error.message);
-        return;
-      }
-
-      setActualIncome(
-        (tx ?? []).reduce((s: number, t: any) => s + Number(t.amount), 0)
-      );
-    } else {
-      setActualIncome(0);
-    }
-
-    // Expenses
-    if (expenseCatIds.length > 0) {
-      const { data: tx, error } = await supabase
-        .from("transactions")
-        .select("amount")
-        .eq("user_id", user.id)
-        .gte("date", monthStart)
-        .lt("date", monthEnd)
-        .in("category_id", expenseCatIds);
-
-      if (error) {
-        setMsg(error.message);
-        return;
-      }
-
-      setActualExpenses(
-        (tx ?? []).reduce((s: number, t: any) => s + Number(t.amount), 0)
-      );
-    } else {
-      setActualExpenses(0);
-    }
-  }
-
-  async function loadPlannedTotals() {
-    setMsg("");
-
-    const user = await ensureAuthedUser();
-    if (!user) return;
-
-    const { data: rows, error } = await supabase
-      .from("planned_items")
-      .select("type, amount")
-      .eq("user_id", user.id)
-      .eq("month", monthKey);
-
-    if (error) {
-      setMsg(error.message);
-      return;
-    }
-
-    const p = (rows ?? []) as PlanRow[];
-
-    setPlannedIncome(
-      p.filter((r) => r.type === "income").reduce((s, r) => s + Number(r.amount), 0)
-    );
-    setPlannedExpenses(
-      p.filter((r) => r.type === "expense").reduce((s, r) => s + Number(r.amount), 0)
-    );
-  }
-
   async function refreshAll() {
-    await loadActualTotals();
-    await loadPlannedTotals();
+    setMsg("");
+    try {
+      const res = await fetch(
+        `/api/budget/bootstrap?month=${encodeURIComponent(
+          monthKey
+        )}&start=${encodeURIComponent(monthStart)}&end=${encodeURIComponent(monthEnd)}`,
+        { cache: "no-store", credentials: "include" }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to load dashboard data.");
+
+      const categories = (data?.categories ?? []) as Array<{
+        id: string;
+        group_name: string;
+      }>;
+      const categoryById = new Map(categories.map((c) => [c.id, c]));
+
+      const txns = (data?.transactions ?? []) as Array<{
+        amount: number;
+        category_id: string | null;
+      }>;
+      const actualIncomeTotal = txns.reduce((sum, t) => {
+        const cat = t.category_id ? categoryById.get(t.category_id) : null;
+        return cat?.group_name === "income" ? sum + Number(t.amount) : sum;
+      }, 0);
+      const actualExpenseTotal = txns.reduce((sum, t) => {
+        const cat = t.category_id ? categoryById.get(t.category_id) : null;
+        return cat?.group_name === "expense" ? sum + Number(t.amount) : sum;
+      }, 0);
+
+      const planRows = (data?.plannedItems ?? []) as PlanRow[];
+      const plannedIncomeTotal = planRows
+        .filter((r) => r.type === "income")
+        .reduce((s, r) => s + Number(r.amount), 0);
+      const plannedExpenseTotal = planRows
+        .filter((r) => r.type === "expense")
+        .reduce((s, r) => s + Number(r.amount), 0);
+
+      setActualIncome(actualIncomeTotal);
+      setActualExpenses(actualExpenseTotal);
+      setPlannedIncome(plannedIncomeTotal);
+      setPlannedExpenses(plannedExpenseTotal);
+    } catch (e: any) {
+      setMsg(e?.message ?? String(e));
+    }
   }
 
   useEffect(() => {
