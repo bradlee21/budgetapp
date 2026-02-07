@@ -2876,7 +2876,7 @@ export default function BudgetPage() {
           </div>
         )}
 
-        <div className="sticky top-0 z-20 rounded-lg border brand-border brand-sticky backdrop-blur px-2">
+        <div className="sticky top-[var(--app-header-h)] z-20 rounded-lg border brand-border brand-sticky backdrop-blur px-2">
           <div className="py-3">
             <div className="md:hidden">
               <div className="rounded-lg border border-t-4 brand-top-border brand-border brand-panel p-3">

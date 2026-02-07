@@ -10,6 +10,7 @@
   --brand-border: #c7d6e4;
   --brand-blue-soft: #e7f1ff;
   --brand-blue-soft-hover: #d8e8ff;
+  --app-header-h: 56px;
 }
 
 @media (prefers-color-scheme: dark) {

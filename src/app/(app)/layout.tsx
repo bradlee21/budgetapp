@@ -7,8 +7,8 @@ export default function AppLayout({
 }) {
   return (
     <>
-      <header className="border-b brand-border brand-header backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+      <header className="sticky top-0 z-50 border-b brand-border brand-header backdrop-blur">
+        <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
           <div className="font-semibold brand-text">NextStep</div>
 
           <nav className="hidden flex-wrap gap-2 text-sm md:flex">
