@@ -1218,7 +1218,7 @@ export default function BudgetPage() {
     const { data, error } = await supabase
       .from("categories")
       .select("id, group_name, name, parent_id, sort_order, is_archived")
-      .eq("is_archived", false)
+      .or("is_archived.is.null,is_archived.eq.false")
       .order("group_name", { ascending: true })
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
