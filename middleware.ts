@@ -103,5 +103,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/|api/|favicon.ico|manifest.webmanifest|icons/).*)"],
+  matcher: [
+    "/((?!_next/|api/|favicon.ico|manifest.webmanifest|sw.js|icons/|.*\\.(?:css|js|map|json|txt|png|jpg|jpeg|svg|ico|webmanifest)$).*)",
+  ],
 };
