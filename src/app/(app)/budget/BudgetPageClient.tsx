@@ -1223,7 +1223,25 @@ export default function BudgetPage() {
     setMsg("");
     setLoading(true);
     try {
-      const { data: u } = await supabase.auth.getUser();
+      let { data: u } = await supabase.auth.getUser();
+      if (!u.user) {
+        const res = await fetch("/api/auth/session", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const session = data?.session;
+          if (session?.access_token && session?.refresh_token) {
+            await supabase.auth.setSession({
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+            });
+            const refreshed = await supabase.auth.getUser();
+            u = refreshed.data;
+          }
+        }
+      }
       if (!u.user) return;
       setUserId(u.user.id);
 
@@ -1338,7 +1356,7 @@ export default function BudgetPage() {
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
     } finally {
-    setLoading(false);
+      setLoading(false);
     }
   }
 
