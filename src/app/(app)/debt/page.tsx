@@ -82,16 +82,17 @@ export default function DebtPage() {
       if (payload.min_payment !== null && !Number.isFinite(payload.min_payment))
         throw new Error("Min payment must be a number.");
 
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return;
-
-      const { error } = await supabase.from("credit_cards").insert([
-        {
-          user_id: u.user.id,
+      const res = await fetch("/api/budget/credit-cards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "create",
           ...payload,
-        },
-      ]);
-      if (error) throw error;
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to add credit card.");
 
       setName("");
       setApr("");
@@ -107,21 +108,31 @@ export default function DebtPage() {
   async function updateCard(id: string, patch: Partial<CreditCard>) {
     setMsg("");
     try {
-      const { error } = await supabase
-        .from("credit_cards")
-        .update({
+      const res = await fetch("/api/budget/credit-cards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "update",
+          id,
           name: patch.name,
           apr: patch.apr,
           current_balance: patch.current_balance,
           min_payment: patch.min_payment,
-        })
-        .eq("id", id);
-
-      if (error) throw error;
-
-      setCards((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, ...patch } : c))
-      );
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to update credit card.");
+      if (data?.creditCard) {
+        const updated = data.creditCard as CreditCard;
+        setCards((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, ...updated } : c))
+        );
+      } else {
+        setCards((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, ...patch } : c))
+        );
+      }
       setMsg("Saved.");
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
@@ -131,8 +142,14 @@ export default function DebtPage() {
   async function deleteCard(id: string) {
     setMsg("");
     try {
-      const { error } = await supabase.from("credit_cards").delete().eq("id", id);
-      if (error) throw error;
+      const res = await fetch("/api/budget/credit-cards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "delete", id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to delete credit card.");
       setCards((prev) => prev.filter((c) => c.id !== id));
       setMsg("Deleted.");
     } catch (e: any) {

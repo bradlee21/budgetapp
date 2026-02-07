@@ -89,15 +89,6 @@ function sortCategories(list: Category[]) {
     );
 }
 
-function isDuplicateCategoryError(err: any) {
-  const msg = String(err?.message ?? err ?? "");
-  return (
-    err?.code === "23505" ||
-    msg.includes("categories_unique_user_group_parent_lowername") ||
-    msg.includes("duplicate key value")
-  );
-}
-
 function hasCreditCardCategory(list: Category[]) {
   const byId = new Map(list.map((c) => [c.id, c]));
   return list.some((c) => {
@@ -396,7 +387,7 @@ export default function TransactionsPage() {
       const { data: cats, error: catErr } = await supabase
         .from("categories")
         .select("id, group_name, name, parent_id, sort_order, is_archived")
-        .eq("is_archived", false)
+        .or("is_archived.is.null,is_archived.eq.false")
         .order("group_name", { ascending: true })
         .order("sort_order", { ascending: true })
         .order("name", { ascending: true });
@@ -404,24 +395,20 @@ export default function TransactionsPage() {
       if (catErr) throw catErr;
       let nextCats = (cats ?? []) as Category[];
       if (!hasCreditCardCategory(nextCats)) {
-        const nextOrder =
-          nextCats
-            .filter((c) => c.group_name === "debt")
-            .reduce((max, c) => Math.max(max, c.sort_order), 0) + 1;
-        const { data: created, error: createErr } = await supabase
-          .from("categories")
-          .insert({
-            user_id: u.user.id,
-            group_name: "debt",
-            name: "Credit Card",
-            parent_id: null,
-            sort_order: nextOrder,
-          })
-          .select("id, group_name, name, parent_id, sort_order, is_archived")
-          .single();
-        if (createErr && !isDuplicateCategoryError(createErr)) throw createErr;
-        if (created) {
-          nextCats = [...nextCats, created as Category];
+        const ensureRes = await fetch("/api/budget/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ action: "ensureCreditCardCategory" }),
+        });
+        const ensureData = await ensureRes.json();
+        if (!ensureRes.ok) {
+          throw new Error(
+            ensureData?.error ?? "Failed to ensure credit card category."
+          );
+        }
+        if (ensureData?.category) {
+          nextCats = [...nextCats, ensureData.category as Category];
         }
       }
       setCategories(sortCategories(nextCats));
@@ -521,7 +508,6 @@ export default function TransactionsPage() {
       );
 
       const payload: any = {
-        user_id: u.user.id,
         source: "manual",
         date,
         name: computedName, // always safe
@@ -536,16 +522,14 @@ export default function TransactionsPage() {
           : null,
       };
 
-      const { error } = await supabase.from("transactions").insert([payload]);
-      if (error) throw error;
-
-      if (cardSelection?.kind === "card") {
-        await adjustCardBalance(cardSelection.id, -amt);
-      } else if (cardSelection?.kind === "debt") {
-        await adjustDebtBalance(cardSelection.id, -amt);
-      } else if (needsDebtAccount) {
-        await adjustDebtBalance(debtAccountId, -amt);
-      }
+      const res = await fetch("/api/budget/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "insert", ...payload }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to add transaction.");
 
       saveTxnFormDefaults({
         categoryId,
@@ -593,34 +577,6 @@ export default function TransactionsPage() {
     setEditDescription("");
   }
 
-  async function adjustCardBalance(cardId: string, delta: number) {
-    const card = cards.find((c) => c.id === cardId);
-    if (!card) throw new Error("Credit card not found.");
-    const next = card.current_balance + delta;
-    const { error } = await supabase
-      .from("credit_cards")
-      .update({ current_balance: next })
-      .eq("id", cardId);
-    if (error) throw error;
-    setCards((prev) =>
-      prev.map((c) => (c.id === cardId ? { ...c, current_balance: next } : c))
-    );
-  }
-
-  async function adjustDebtBalance(debtId: string, delta: number) {
-    const debt = debtAccounts.find((d) => d.id === debtId);
-    if (!debt) throw new Error("Debt account not found.");
-    const next = debt.balance + delta;
-    const { error } = await supabase
-      .from("debt_accounts")
-      .update({ balance: next })
-      .eq("id", debtId);
-    if (error) throw error;
-    setDebtAccounts((prev) =>
-      prev.map((d) => (d.id === debtId ? { ...d, balance: next } : d))
-    );
-  }
-
   async function saveEdit(t: Txn) {
     setMsg("");
     try {
@@ -658,70 +614,22 @@ export default function TransactionsPage() {
           : null,
       };
 
-      const oldRequiresCard =
-        !!t.category_id && creditCardCategoryIds.includes(t.category_id);
-      const newRequiresCard = editNeedsCard;
-
-      const oldCardId = t.credit_card_id ?? null;
-      const newCardId = payload.credit_card_id ?? null;
-
-      const oldRequiresDebt = !!t.debt_account_id;
-      const newRequiresDebt = !!payload.debt_account_id;
-      const oldDebtId = t.debt_account_id ?? null;
-      const newDebtId = payload.debt_account_id ?? null;
-
-      const { error } = await supabase
-        .from("transactions")
-        .update(payload)
-        .eq("id", t.id);
-      if (error) throw error;
-
-      if (oldRequiresCard && newRequiresCard && oldCardId && newCardId) {
-        if (oldCardId === newCardId) {
-          const delta = t.amount - amt;
-          if (delta !== 0) await adjustCardBalance(oldCardId, delta);
-        } else {
-          await adjustCardBalance(oldCardId, t.amount);
-          await adjustCardBalance(newCardId, -amt);
-        }
-      } else if (oldRequiresCard && oldCardId) {
-        await adjustCardBalance(oldCardId, t.amount);
-      } else if (newRequiresCard && newCardId) {
-        await adjustCardBalance(newCardId, -amt);
-      }
-
-      if (oldRequiresDebt && newRequiresDebt && oldDebtId && newDebtId) {
-        if (oldDebtId === newDebtId) {
-          const delta = t.amount - amt;
-          if (delta !== 0) await adjustDebtBalance(oldDebtId, delta);
-        } else {
-          await adjustDebtBalance(oldDebtId, t.amount);
-          await adjustDebtBalance(newDebtId, -amt);
-        }
-      } else if (oldRequiresDebt && oldDebtId) {
-        await adjustDebtBalance(oldDebtId, t.amount);
-      } else if (newRequiresDebt && newDebtId) {
-        await adjustDebtBalance(newDebtId, -amt);
-      }
-
-      setTxns((prev) =>
-        prev.map((x) =>
-          x.id === t.id
-            ? {
-                ...x,
-                date: editDate,
-                name: newName,
-                amount: amt,
-                category_id: editCategoryId,
-                credit_card_id: payload.credit_card_id ?? null,
-                debt_account_id: payload.debt_account_id ?? null,
-              }
-            : x
-        )
-      );
+      const res = await fetch("/api/budget/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "update",
+          id: t.id,
+          ...payload,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to update transaction.");
 
       cancelEdit();
       setMsg("Transaction updated.");
+      await loadAll();
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
     }
@@ -733,24 +641,18 @@ export default function TransactionsPage() {
       const ok = confirm("Delete this transaction? This cannot be undone.");
       if (!ok) return;
 
-      const oldRequiresCard =
-        !!t.category_id && creditCardCategoryIds.includes(t.category_id);
-      const oldCardId = t.credit_card_id ?? null;
-      const oldRequiresDebt = !!t.debt_account_id;
-      const oldDebtId = t.debt_account_id ?? null;
-
-      const { error } = await supabase.from("transactions").delete().eq("id", t.id);
-      if (error) throw error;
-
-      if (oldRequiresCard && oldCardId) {
-        await adjustCardBalance(oldCardId, t.amount);
-      }
-      if (oldRequiresDebt && oldDebtId) {
-        await adjustDebtBalance(oldDebtId, t.amount);
-      }
+      const res = await fetch("/api/budget/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "delete", id: t.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to delete transaction.");
 
       setTxns((prev) => prev.filter((x) => x.id !== t.id));
       setMsg("Transaction deleted.");
+      await loadAll();
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
     }
@@ -808,11 +710,20 @@ export default function TransactionsPage() {
         }
 
         const next = starting - totalPaid;
-        const { error: upErr } = await supabase
-          .from("credit_cards")
-          .update({ current_balance: next })
-          .eq("id", card.id);
-        if (upErr) throw upErr;
+        const res = await fetch("/api/budget/credit-cards", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            action: "update",
+            id: card.id,
+            current_balance: next,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error ?? "Failed to update credit card balance.");
+        }
 
         updated.push({ ...card, current_balance: next });
       }

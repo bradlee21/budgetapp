@@ -1086,100 +1086,6 @@ export default function BudgetPage() {
     if (defaults.debtAccountId) setTxnDebtAccountId(defaults.debtAccountId);
   }, []);
 
-  async function seedDefaultCategories(seedUserId: string) {
-    const flatDefaults: Array<{ group: Category["group_name"]; names: string[] }> =
-      [
-        { group: "income", names: ["Primary Income", "Other Income"] },
-        { group: "giving", names: ["Tithe", "Charity"] },
-        {
-          group: "savings",
-          names: ["Emergency Fund", "Sinking Fund", "Long-Term Savings"],
-        },
-        { group: "debt", names: ["Credit Card", "Debt Payment"] },
-      ];
-
-    const expenseGroups: Array<{ name: string; children: string[] }> = [
-      {
-        name: "Housing",
-        children: ["Rent/Mortgage", "Utilities", "Internet"],
-      },
-      {
-        name: "Transportation",
-        children: ["Gas", "Maintenance", "Insurance"],
-      },
-      {
-        name: "Food",
-        children: ["Groceries", "Restaurants"],
-      },
-      {
-        name: "Lifestyle",
-        children: ["Entertainment", "Subscriptions"],
-      },
-      {
-        name: "Health",
-        children: ["Medical", "Pharmacy"],
-      },
-      {
-        name: "Personal",
-        children: ["Clothing", "Personal Care"],
-      },
-      {
-        name: "Insurance",
-        children: ["Health", "Auto", "Home/Renters"],
-      },
-    ];
-
-    const parentPayload = [
-      ...flatDefaults.flatMap((d) =>
-        d.names.map((name, idx) => ({
-          user_id: seedUserId,
-          group_name: d.group,
-          name,
-          parent_id: null,
-          sort_order: idx + 1,
-        }))
-      ),
-      ...expenseGroups.map((g, idx) => ({
-        user_id: seedUserId,
-        group_name: "expense" as const,
-        name: g.name,
-        parent_id: null,
-        sort_order: idx + 1,
-      })),
-    ];
-
-    const { data: parentData, error: parentErr } = await supabase
-      .from("categories")
-      .insert(parentPayload)
-      .select("id, group_name, name, parent_id, sort_order, is_archived");
-    if (parentErr) throw parentErr;
-
-    const parentByName = new Map<string, Category>();
-    for (const p of parentData ?? []) {
-      if (p.group_name === "expense") parentByName.set(p.name, p as Category);
-    }
-
-    const childPayload = expenseGroups.flatMap((g) => {
-      const parent = parentByName.get(g.name);
-      if (!parent) return [];
-      return g.children.map((name, idx) => ({
-        user_id: seedUserId,
-        group_name: "expense" as const,
-        name,
-        parent_id: parent.id,
-        sort_order: idx + 1,
-      }));
-    });
-
-    const { data: childData, error: childErr } = await supabase
-      .from("categories")
-      .insert(childPayload)
-      .select("id, group_name, name, parent_id, sort_order, is_archived");
-    if (childErr) throw childErr;
-
-    return ([...(parentData ?? []), ...(childData ?? [])] as Category[]);
-  }
-
   function isDuplicateCategoryError(err: any) {
     const msg = String(err?.message ?? err ?? "");
     return (
@@ -1233,7 +1139,15 @@ export default function BudgetPage() {
     }
     const run = (async () => {
       try {
-        return await seedDefaultCategories(seedUserId);
+        const res = await fetch("/api/budget/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ action: "seedDefaults" }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error ?? "Failed to seed defaults.");
+        return (data?.categories ?? []) as Category[];
       } catch (e: any) {
         if (isDuplicateCategoryError(e)) {
           return await fetchActiveCategories();
@@ -1294,24 +1208,23 @@ export default function BudgetPage() {
         nextCats = await ensureSeeded(bootstrap.userId);
       }
       if (!hasCreditCardCategory(nextCats) && bootstrap.userId) {
-        const nextOrder =
-          nextCats
-            .filter((c) => c.group_name === "debt")
-            .reduce((max, c) => Math.max(max, c.sort_order), 0) + 1;
-        const { data: created, error: createErr } = await supabase
-          .from("categories")
-          .insert({
-            user_id: bootstrap.userId,
-            group_name: "debt",
-            name: "Credit Card",
-            parent_id: null,
-            sort_order: nextOrder,
-          })
-          .select("id, group_name, name, parent_id, sort_order, is_archived")
-          .single();
-        if (createErr && !isDuplicateCategoryError(createErr)) throw createErr;
-        if (created) {
-          nextCats = sortCategories([...nextCats, created as Category]);
+        const ensureRes = await fetch("/api/budget/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ action: "ensureCreditCardCategory" }),
+        });
+        const ensureData = await ensureRes.json();
+        if (!ensureRes.ok) {
+          throw new Error(
+            ensureData?.error ?? "Failed to ensure credit card category."
+          );
+        }
+        if (ensureData?.category) {
+          nextCats = sortCategories([
+            ...nextCats,
+            ensureData.category as Category,
+          ]);
         }
       }
       setCategories(nextCats);
@@ -1686,43 +1599,50 @@ export default function BudgetPage() {
     try {
       const applyPlannedTotal = async () => {
         if (items.length === 1) {
-          const { data, error } = await supabase
-            .from("planned_items")
-            .update({ amount: amt })
-            .eq("id", items[0].id)
-            .select(
-              "id, type, category_id, credit_card_id, debt_account_id, name, amount"
-            )
-            .single();
-          if (error) throw error;
+          const res = await fetch("/api/budget/planned-items", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              action: "update",
+              id: items[0].id,
+              amount: amt,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error ?? "Failed to update planned.");
+          const updated = data?.plannedItem;
+          if (!updated) throw new Error("No planned item returned.");
           setPlanRows((prev) =>
             prev.map((p) =>
-              p.id === data.id
+              p.id === updated.id
                 ? {
                     ...p,
-                    amount: Number(data.amount),
-                    debt_account_id: data.debt_account_id ?? null,
+                    amount: Number(updated.amount),
+                    debt_account_id: updated.debt_account_id ?? null,
                   }
                 : p
             )
           );
         } else {
           if (items.length > 1) {
-            const { error: delErr } = await supabase
-              .from("planned_items")
-              .delete()
-              .in(
-                "id",
-                items.map((p) => p.id)
-              );
-            if (delErr) throw delErr;
+            const res = await fetch("/api/budget/planned-items", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                action: "deleteMany",
+                ids: items.map((p) => p.id),
+              }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data?.error ?? "Failed to delete planned.");
             setPlanRows((prev) =>
               prev.filter((p) => !items.some((x) => x.id === p.id))
             );
           }
 
           const payload: any = {
-            user_id: userId,
             month: monthKey,
             type,
             category_id: categoryId,
@@ -1731,24 +1651,26 @@ export default function BudgetPage() {
             name: "Planned total",
             amount: amt,
           };
-          const { data, error } = await supabase
-            .from("planned_items")
-            .insert([payload])
-            .select(
-              "id, type, category_id, credit_card_id, debt_account_id, name, amount"
-            )
-            .single();
-          if (error) throw error;
+          const res = await fetch("/api/budget/planned-items", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ action: "insert", ...payload }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error ?? "Failed to add planned.");
+          const created = data?.plannedItem;
+          if (!created) throw new Error("No planned item returned.");
           setPlanRows((prev) => [
             ...prev,
             {
-              id: data.id,
-              type: data.type,
-              category_id: data.category_id,
-              credit_card_id: data.credit_card_id ?? null,
-              debt_account_id: data.debt_account_id ?? null,
-              name: data.name,
-              amount: Number(data.amount),
+              id: created.id,
+              type: created.type,
+              category_id: created.category_id,
+              credit_card_id: created.credit_card_id ?? null,
+              debt_account_id: created.debt_account_id ?? null,
+              name: created.name,
+              amount: Number(created.amount),
             },
           ]);
         }
@@ -1796,11 +1718,14 @@ export default function BudgetPage() {
       }
       if (isDefaultCategory(cat)) {
         confirmActionRef.current = async () => {
-          const { error } = await supabase
-            .from("categories")
-            .update({ is_archived: true })
-            .eq("id", categoryId);
-          if (error) throw error;
+          const res = await fetch("/api/budget/categories", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ action: "archive", id: categoryId }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error ?? "Failed to archive.");
 
           setCategories((prev) => prev.filter((c) => c.id !== categoryId));
         };
@@ -1811,11 +1736,14 @@ export default function BudgetPage() {
         });
       } else {
         confirmActionRef.current = async () => {
-          const { error } = await supabase
-            .from("categories")
-            .delete()
-            .eq("id", categoryId);
-          if (error) throw error;
+          const res = await fetch("/api/budget/categories", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ action: "delete", id: categoryId }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error ?? "Failed to delete.");
 
           setCategories((prev) => prev.filter((c) => c.id !== categoryId));
         };
@@ -1836,11 +1764,14 @@ export default function BudgetPage() {
   async function restoreCategory(categoryId: string) {
     setMsg("");
     try {
-      const { error } = await supabase
-        .from("categories")
-        .update({ is_archived: false })
-        .eq("id", categoryId);
-      if (error) throw error;
+      const res = await fetch("/api/budget/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "restore", id: categoryId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to restore.");
 
       const restored = archivedCategories.find((c) => c.id === categoryId);
       if (restored) {
@@ -1985,20 +1916,21 @@ export default function BudgetPage() {
       )
       .reduce((m, c) => Math.max(m, c.sort_order ?? 0), 0);
 
-    const { data, error } = await supabase
-      .from("categories")
-      .insert([
-        {
-          user_id: userId,
-          group_name: group,
-          name: clean,
-          parent_id: parentId,
-          sort_order: maxOrder + 1,
-        },
-      ])
-      .select("id, group_name, name, parent_id, sort_order, is_archived")
-      .single();
-    if (error) throw error;
+    const res = await fetch("/api/budget/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        action: "create",
+        group,
+        name: clean,
+        parentId,
+      }),
+    });
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload?.error ?? "Failed to create category.");
+    const data = payload?.category;
+    if (!data) throw new Error("No category returned.");
 
     setCategories((prev) =>
       [...prev, data as Category].sort((a, b) => {
@@ -2053,11 +1985,14 @@ export default function BudgetPage() {
     try {
       const name = editCategoryName.trim();
       if (!name) throw new Error("Enter a name.");
-      const { error } = await supabase
-        .from("categories")
-        .update({ name })
-        .eq("id", categoryId);
-      if (error) throw error;
+      const res = await fetch("/api/budget/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "rename", id: categoryId, name }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to rename.");
       setCategories((prev) =>
         prev.map((c) => (c.id === categoryId ? { ...c, name } : c))
       );
@@ -2108,20 +2043,25 @@ export default function BudgetPage() {
       setEditDebtDueDateError(dueErr);
       if (dueErr) throw new Error(dueErr);
 
-      const { data, error } = await supabase
-        .from("debt_accounts")
-        .update({
+      const res = await fetch("/api/budget/debt-accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "update",
+          id: editDebtId,
           name,
           debt_type: editDebtType,
           balance: bal,
           apr,
           min_payment: minPay,
           due_date: editDebtDueDate || null,
-        })
-        .eq("id", editDebtId)
-        .select("id, name, debt_type, balance, apr, min_payment, due_date")
-        .single();
-      if (error) throw error;
+        }),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload?.error ?? "Failed to update debt.");
+      const data = payload?.debtAccount;
+      if (!data) throw new Error("No debt account returned.");
 
       setDebtAccounts((prev) =>
         prev.map((d) =>
@@ -2194,24 +2134,20 @@ export default function BudgetPage() {
       next.splice(toIndex, 0, { ...dragged, parent_id: targetParentId });
     }
 
-    const updates = [];
-    if (!inSameParent) {
-      updates.push(
-        supabase
-          .from("categories")
-          .update({ parent_id: targetParentId })
-          .eq("id", dragged.id)
-      );
-    }
-    updates.push(
-      ...next.map((c, i) =>
-        supabase.from("categories").update({ sort_order: i + 1 }).eq("id", c.id)
-      )
-    );
-    const results = await Promise.all(updates);
-    const err = results.find((r) => r.error)?.error;
-    if (err) {
-      setMsg(err.message);
+    const updates = next.map((c, i) => ({
+      id: c.id,
+      sort_order: i + 1,
+      parent_id: c.id === dragged.id ? targetParentId : c.parent_id,
+    }));
+    const res = await fetch("/api/budget/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ action: "reorder", updates }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setMsg(data?.error ?? "Failed to reorder.");
       return;
     }
 
@@ -2302,7 +2238,6 @@ export default function BudgetPage() {
       );
 
       const payload: any = {
-        user_id: userId,
         source: "manual",
         date: txnDate,
         name: computedName,
@@ -2314,14 +2249,14 @@ export default function BudgetPage() {
           txnNeedsDebtAccount ? txnDebtAccountId : cardSelection?.kind === "debt" ? cardSelection.id : null,
       };
 
-      const { error } = await supabase.from("transactions").insert([payload]);
-      if (error) throw error;
-
-      if (txnDebtAccountId) {
-        await adjustDebtBalance(txnDebtAccountId, -amt);
-      } else if (cardSelection?.kind === "debt") {
-        await adjustDebtBalance(cardSelection.id, -amt);
-      }
+      const res = await fetch("/api/budget/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "insert", ...payload }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to add transaction.");
 
       saveTxnFormDefaults({
         categoryId: txnCategoryId,
@@ -2369,34 +2304,6 @@ export default function BudgetPage() {
     setEditTxnDescription("");
   }
 
-  async function adjustCardBalance(cardId: string, delta: number) {
-    const card = cards.find((c) => c.id === cardId);
-    if (!card) throw new Error("Credit card not found.");
-    const next = card.current_balance + delta;
-    const { error } = await supabase
-      .from("credit_cards")
-      .update({ current_balance: next })
-      .eq("id", cardId);
-    if (error) throw error;
-    setCards((prev) =>
-      prev.map((c) => (c.id === cardId ? { ...c, current_balance: next } : c))
-    );
-  }
-
-  async function adjustDebtBalance(debtId: string, delta: number) {
-    const debt = debtAccounts.find((d) => d.id === debtId);
-    if (!debt) throw new Error("Debt account not found.");
-    const next = debt.balance + delta;
-    const { error } = await supabase
-      .from("debt_accounts")
-      .update({ balance: next })
-      .eq("id", debtId);
-    if (error) throw error;
-    setDebtAccounts((prev) =>
-      prev.map((d) => (d.id === debtId ? { ...d, balance: next } : d))
-    );
-  }
-
   async function saveEditTxn(t: Txn) {
     setMsg("");
     try {
@@ -2433,71 +2340,22 @@ export default function BudgetPage() {
             : null,
       };
 
-      const oldRequiresCard =
-        !!t.category_id && creditCardCategoryIds.includes(t.category_id);
-      const newRequiresCard = editTxnNeedsCard;
-
-      const oldCardId = t.credit_card_id ?? null;
-      const newCardId = payload.credit_card_id ?? null;
-
-      const oldRequiresDebt = !!t.debt_account_id;
-      const newRequiresDebt = !!payload.debt_account_id;
-
-      const oldDebtId = t.debt_account_id ?? null;
-      const newDebtId = payload.debt_account_id ?? null;
-
-      const { error } = await supabase
-        .from("transactions")
-        .update(payload)
-        .eq("id", t.id);
-      if (error) throw error;
-
-      if (oldRequiresCard && newRequiresCard && oldCardId && newCardId) {
-        if (oldCardId === newCardId) {
-          const delta = t.amount - amt;
-          if (delta !== 0) await adjustCardBalance(oldCardId, delta);
-        } else {
-          await adjustCardBalance(oldCardId, t.amount);
-          await adjustCardBalance(newCardId, -amt);
-        }
-      } else if (oldRequiresCard && oldCardId) {
-        await adjustCardBalance(oldCardId, t.amount);
-      } else if (newRequiresCard && newCardId) {
-        await adjustCardBalance(newCardId, -amt);
-      }
-
-      if (oldRequiresDebt && newRequiresDebt && oldDebtId && newDebtId) {
-        if (oldDebtId === newDebtId) {
-          const delta = t.amount - amt;
-          if (delta !== 0) await adjustDebtBalance(oldDebtId, delta);
-        } else {
-          await adjustDebtBalance(oldDebtId, t.amount);
-          await adjustDebtBalance(newDebtId, -amt);
-        }
-      } else if (oldRequiresDebt && oldDebtId) {
-        await adjustDebtBalance(oldDebtId, t.amount);
-      } else if (newRequiresDebt && newDebtId) {
-        await adjustDebtBalance(newDebtId, -amt);
-      }
-
-      setTxns((prev) =>
-        prev.map((x) =>
-          x.id === t.id
-            ? {
-                ...x,
-                date: editTxnDate,
-                name: newName,
-                amount: amt,
-                category_id: editTxnCategoryId,
-                credit_card_id: payload.credit_card_id,
-                debt_account_id: payload.debt_account_id,
-              }
-            : x
-        )
-      );
+      const res = await fetch("/api/budget/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "update",
+          id: t.id,
+          ...payload,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to update transaction.");
 
       cancelEditTxn();
       setMsg("Transaction updated.");
+      await loadAll();
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
     }
@@ -2507,32 +2365,18 @@ export default function BudgetPage() {
     setMsg("");
     try {
       confirmActionRef.current = async () => {
-        const oldRequiresCard =
-          !!t.category_id && creditCardCategoryIds.includes(t.category_id);
-        const oldCardId = t.credit_card_id ?? null;
-
-        const oldRequiresDebt =
-          !!t.category_id &&
-          !creditCardCategoryIds.includes(t.category_id) &&
-          categoryById.get(t.category_id)?.group_name === "debt";
-        const oldDebtId = t.debt_account_id ?? null;
-
-        const { error } = await supabase
-          .from("transactions")
-          .delete()
-          .eq("id", t.id);
-        if (error) throw error;
-
-        if (oldRequiresCard && oldCardId) {
-          await adjustCardBalance(oldCardId, t.amount);
-        }
-
-        if (oldRequiresDebt && oldDebtId) {
-          await adjustDebtBalance(oldDebtId, t.amount);
-        }
+        const res = await fetch("/api/budget/transactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ action: "delete", id: t.id }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error ?? "Failed to delete transaction.");
 
         setTxns((prev) => prev.filter((x) => x.id !== t.id));
         setMsg("Transaction deleted.");
+        await loadAll();
       };
       setConfirmState({
         open: true,
@@ -2549,17 +2393,14 @@ export default function BudgetPage() {
     try {
       if (!userId) return;
       confirmActionRef.current = async () => {
-        const { error } = await supabase
-          .from("debt_accounts")
-          .delete()
-          .eq("id", debt.id);
-        if (error) throw error;
-
-        const { error: planErr } = await supabase
-          .from("planned_items")
-          .delete()
-          .eq("debt_account_id", debt.id);
-        if (planErr) throw planErr;
+        const res = await fetch("/api/budget/debt-accounts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ action: "delete", id: debt.id }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error ?? "Failed to delete debt account.");
 
         setDebtAccounts((prev) => prev.filter((d) => d.id !== debt.id));
         setPlanRows((prev) => prev.filter((p) => p.debt_account_id !== debt.id));

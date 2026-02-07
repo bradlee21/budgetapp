@@ -132,7 +132,6 @@ function SwipeRow({
 export default function DebtAccountsPage() {
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
   const [debtAccounts, setDebtAccounts] = useState<DebtAccount[]>([]);
   const addFormRef = useRef<HTMLDivElement | null>(null);
   const addNameRef = useRef<HTMLInputElement | null>(null);
@@ -167,7 +166,6 @@ export default function DebtAccountsPage() {
       try {
         const { data: u } = await supabase.auth.getUser();
         if (!u.user) return;
-        setUserId(u.user.id);
         const { data, error } = await supabase
           .from("debt_accounts")
           .select("id, name, debt_type, balance, apr, min_payment, due_date")
@@ -230,33 +228,39 @@ export default function DebtAccountsPage() {
       setEditDebtDueDateError(dueErr);
       if (dueErr) throw new Error(dueErr);
 
-      const { data, error } = await supabase
-        .from("debt_accounts")
-        .update({
+      const res = await fetch("/api/budget/debt-accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "update",
+          id: editDebtId,
           name,
           debt_type: editDebtType,
           balance: bal,
           apr,
           min_payment: minPay,
           due_date: editDebtDueDate || null,
-        })
-        .eq("id", editDebtId)
-        .select("id, name, debt_type, balance, apr, min_payment, due_date")
-        .single();
-      if (error) throw error;
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to update debt account.");
 
+      const updated = data?.debtAccount as DebtAccount | undefined;
       setDebtAccounts((prev) =>
         prev.map((d) =>
           d.id === editDebtId
-            ? {
-                id: data.id,
-                name: data.name,
-                debt_type: (data.debt_type ?? "credit_card") as DebtAccount["debt_type"],
-                balance: Number(data.balance),
-                apr: data.apr === null ? null : Number(data.apr),
-                min_payment: data.min_payment === null ? null : Number(data.min_payment),
-                due_date: data.due_date ?? null,
-              }
+            ? updated
+              ? {
+                  id: updated.id,
+                  name: updated.name,
+                  debt_type: updated.debt_type,
+                  balance: Number(updated.balance),
+                  apr: updated.apr === null ? null : Number(updated.apr),
+                  min_payment: updated.min_payment === null ? null : Number(updated.min_payment),
+                  due_date: updated.due_date ?? null,
+                }
+              : d
             : d
         )
       );
@@ -270,7 +274,6 @@ export default function DebtAccountsPage() {
   async function addDebtAccount() {
     setMsg("");
     try {
-      if (!userId) return;
       const name = debtName.trim();
       if (!name) throw new Error("Enter a debt name.");
       const bal = Number(debtBalance);
@@ -284,35 +287,37 @@ export default function DebtAccountsPage() {
       setDebtDueDateError(dueErr);
       if (dueErr) throw new Error(dueErr);
 
-      const { data, error } = await supabase
-        .from("debt_accounts")
-        .insert([
+      const res = await fetch("/api/budget/debt-accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "create",
+          name,
+          debt_type: debtType,
+          balance: bal,
+          apr,
+          min_payment: minPay,
+          due_date: debtDueDate || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to add debt account.");
+      if (data?.debtAccount) {
+        const created = data.debtAccount as DebtAccount;
+        setDebtAccounts((prev) => [
+          ...prev,
           {
-            user_id: userId,
-            name,
-            debt_type: debtType,
-            balance: bal,
-            apr,
-            min_payment: minPay,
-            due_date: debtDueDate || null,
+            id: created.id,
+            name: created.name,
+            debt_type: created.debt_type,
+            balance: Number(created.balance),
+            apr: created.apr === null ? null : Number(created.apr),
+            min_payment: created.min_payment === null ? null : Number(created.min_payment),
+            due_date: created.due_date ?? null,
           },
-        ])
-        .select("id, name, debt_type, balance, apr, min_payment, due_date")
-        .single();
-      if (error) throw error;
-
-      setDebtAccounts((prev) => [
-        ...prev,
-        {
-          id: data.id,
-          name: data.name,
-          debt_type: (data.debt_type ?? "credit_card") as DebtAccount["debt_type"],
-          balance: Number(data.balance),
-          apr: data.apr === null ? null : Number(data.apr),
-          min_payment: data.min_payment === null ? null : Number(data.min_payment),
-          due_date: data.due_date ?? null,
-        },
-      ]);
+        ]);
+      }
       setDebtName("");
       setDebtType("credit_card");
       setDebtBalance("");
@@ -328,8 +333,14 @@ export default function DebtAccountsPage() {
 
   async function deleteDebtAccount(d: DebtAccount) {
     confirmActionRef.current = async () => {
-      const { error } = await supabase.from("debt_accounts").delete().eq("id", d.id);
-      if (error) throw error;
+      const res = await fetch("/api/budget/debt-accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "delete", id: d.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to delete debt account.");
       setDebtAccounts((prev) => prev.filter((x) => x.id !== d.id));
       setMsg("Debt account deleted.");
     };
