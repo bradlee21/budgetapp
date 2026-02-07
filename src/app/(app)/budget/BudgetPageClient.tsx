@@ -1379,50 +1379,24 @@ export default function BudgetPage() {
   async function syncBudgetMonth() {
     if (!userId) return;
     try {
-      const { data: row, error } = await supabase
-        .from("budget_months")
-        .select("id, user_id, month, available_start, available_end")
-        .eq("user_id", userId)
-        .eq("month", monthKey)
-        .maybeSingle();
+      const res = await fetch("/api/budget/budget-month", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          month: monthKey,
+          plannedIncome,
+          plannedOut,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to sync month.");
 
-      if (error) throw error;
-
-      let availableStartNext = row?.available_start;
-
-      if (availableStartNext === undefined || availableStartNext === null) {
-        const prevMonthKey = toMonthKey(addMonths(new Date(), monthOffset - 1));
-        const { data: prevRow, error: prevErr } = await supabase
-          .from("budget_months")
-          .select("available_end")
-          .eq("user_id", userId)
-          .eq("month", prevMonthKey)
-          .maybeSingle();
-        if (prevErr) throw prevErr;
-        availableStartNext = prevRow?.available_end ?? 0;
-      }
-
-      const nextEnd = availableStartNext + plannedIncome - plannedOut;
-
-      const { data: up, error: upErr } = await supabase
-        .from("budget_months")
-        .upsert(
-          {
-            user_id: userId,
-            month: monthKey,
-            available_start: availableStartNext,
-            available_end: nextEnd,
-          },
-          { onConflict: "user_id,month" }
-        )
-        .select("id, user_id, month, available_start, available_end")
-        .single();
-
-      if (upErr) throw upErr;
-
-      setBudgetMonth(up as BudgetMonth);
+      const up = data?.budgetMonth as BudgetMonth | undefined;
+      if (!up) return;
+      setBudgetMonth(up);
       if (!availableDirty) {
-        setAvailableStart(String(availableStartNext));
+        setAvailableStart(String(up.available_start ?? 0));
       }
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
@@ -1435,24 +1409,20 @@ export default function BudgetPage() {
     setSavingAvailable(true);
     try {
       const startVal = availableStartNum;
-      const nextEnd = startVal + plannedIncome - plannedOut;
-
-      const { data: up, error } = await supabase
-        .from("budget_months")
-        .upsert(
-          {
-            user_id: userId,
-            month: monthKey,
-            available_start: startVal,
-            available_end: nextEnd,
-          },
-          { onConflict: "user_id,month" }
-        )
-        .select("id, user_id, month, available_start, available_end")
-        .single();
-      if (error) throw error;
-
-      setBudgetMonth(up as BudgetMonth);
+      const res = await fetch("/api/budget/budget-month", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          month: monthKey,
+          plannedIncome,
+          plannedOut,
+          availableStart: startVal,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to save rollover.");
+      setBudgetMonth(data?.budgetMonth ?? null);
       setAvailableDirty(false);
       setMsg("Available to budget updated.");
     } catch (e: any) {
