@@ -871,26 +871,7 @@ export default function BudgetPage() {
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
-      try {
-        const res = await fetch("/api/auth/session", {
-          cache: "no-store",
-          credentials: "include",
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const session = data?.session;
-          if (session?.access_token && session?.refresh_token) {
-            await supabase.auth.setSession({
-              access_token: session.access_token,
-              refresh_token: session.refresh_token,
-            });
-          }
-        }
-      } finally {
-        if (mounted) setAuthReady(true);
-      }
-    })();
+    if (mounted) setAuthReady(true);
     return () => {
       mounted = false;
     };
@@ -1159,31 +1140,6 @@ export default function BudgetPage() {
     })();
     seedDefaultsPromiseRef.current = run;
     return run;
-  }
-
-  async function ensureAuthedUser() {
-    const { data: existing } = await supabase.auth.getUser();
-    if (existing.user) return existing.user;
-    try {
-      const res = await fetch("/api/auth/session", {
-        cache: "no-store",
-        credentials: "include",
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      const session = data?.session;
-      if (session?.access_token && session?.refresh_token) {
-        await supabase.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        });
-        const { data: refreshed } = await supabase.auth.getUser();
-        return refreshed.user ?? null;
-      }
-    } catch {
-      return null;
-    }
-    return null;
   }
 
   async function loadAll() {

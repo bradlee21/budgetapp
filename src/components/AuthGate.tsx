@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -13,7 +12,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
     (async () => {
       try {
-        const res = await fetch("/api/auth/session", {
+        const res = await fetch("/api/auth/user", {
           cache: "no-store",
           credentials: "include",
         });
@@ -21,17 +20,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           router.replace("/login");
           return;
         }
-        const data = await res.json();
         if (!mounted) return;
-        const session = data?.session;
-        if (!session?.access_token || !session?.refresh_token) {
-          router.replace("/login");
-          return;
-        }
-        await supabase.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        });
         setReady(true);
       } catch {
         router.replace("/login");

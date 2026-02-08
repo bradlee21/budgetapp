@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,20 +11,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState<string>("");
 
-  async function hydrateSession() {
-    const res = await fetch("/api/auth/session", {
+  async function checkUser() {
+    const res = await fetch("/api/auth/user", {
       cache: "no-store",
       credentials: "include",
     });
     if (!res.ok) return false;
     const data = await res.json();
-    const session = data?.session;
-    if (session?.access_token && session?.refresh_token) {
-      await supabase.auth.setSession({
-        access_token: session.access_token,
-        refresh_token: session.refresh_token,
-      });
-      setUser(session.user ?? null);
+    if (data?.user) {
+      setUser(data.user as User);
       return true;
     }
     return false;
@@ -33,7 +27,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     (async () => {
-      await hydrateSession();
+      await checkUser();
     })();
   }, []);
 
@@ -55,8 +49,8 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok || data?.error) throw new Error(data?.error ?? "Sign-up failed.");
-      const hydrated = await hydrateSession();
-      if (hydrated) {
+      const ok = await checkUser();
+      if (ok) {
         router.replace("/budget");
         return;
       }
@@ -78,8 +72,8 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok || data?.error) throw new Error(data?.error ?? "Sign-in failed.");
-      const hydrated = await hydrateSession();
-      if (hydrated) {
+      const ok = await checkUser();
+      if (ok) {
         router.replace("/budget");
         return;
       }

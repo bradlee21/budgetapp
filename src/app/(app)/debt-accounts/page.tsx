@@ -1,7 +1,6 @@
 "use client";
 
 import AuthGate from "@/components/AuthGate";
-import { supabase } from "@/lib/supabaseClient";
 import { formatMoney } from "@/lib/format";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 

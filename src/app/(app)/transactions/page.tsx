@@ -1,7 +1,6 @@
 "use client";
 
 import AuthGate from "@/components/AuthGate";
-import { supabase } from "@/lib/supabaseClient";
 import { addMonths, firstDayOfMonth, nextMonth, toYMD } from "@/lib/date";
 import { formatMoney } from "@/lib/format";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -377,31 +376,6 @@ export default function TransactionsPage() {
     return catName;
   }
 
-  async function ensureAuthedUser() {
-    const { data: existing } = await supabase.auth.getUser();
-    if (existing.user) return existing.user;
-    try {
-      const res = await fetch("/api/auth/session", {
-        cache: "no-store",
-        credentials: "include",
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      const session = data?.session;
-      if (session?.access_token && session?.refresh_token) {
-        await supabase.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        });
-        const { data: refreshed } = await supabase.auth.getUser();
-        return refreshed.user ?? null;
-      }
-    } catch {
-      return null;
-    }
-    return null;
-  }
-
   async function loadAll() {
     setMsg("");
     setLoading(true);
@@ -668,18 +642,25 @@ export default function TransactionsPage() {
         throw new Error("No credit card payment categories found.");
       }
 
-      const user = await ensureAuthedUser();
-      if (!user) return;
-
-      const { data: rows, error } = await supabase
-        .from("transactions")
-        .select("credit_card_id, amount, category_id")
-        .eq("user_id", user.id)
-        .in("category_id", creditCardCategoryIds);
-      if (error) throw error;
+      const res = await fetch("/api/budget/transactions", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Failed to load transactions.");
+      }
 
       const totals = new Map<string, number>();
-      for (const r of rows ?? []) {
+      const rows = (data?.transactions ?? []) as Array<{
+        credit_card_id: string | null;
+        amount: number;
+        category_id: string | null;
+      }>;
+      for (const r of rows) {
+        if (!r.category_id || !creditCardCategoryIds.includes(r.category_id)) {
+          continue;
+        }
         if (!r.credit_card_id) continue;
         totals.set(
           r.credit_card_id,

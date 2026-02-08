@@ -1,7 +1,6 @@
 "use client";
 
 import AuthGate from "@/components/AuthGate";
-import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useMemo, useState } from "react";
 
 type CreditCard = {

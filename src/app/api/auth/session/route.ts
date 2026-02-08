@@ -35,12 +35,15 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  const { data, error } = await supabase.auth.getSession();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 401 });
   }
 
-  const response = NextResponse.json({ session: data.session }, { status: 200 });
+  const response = NextResponse.json({ user }, { status: 200 });
   cookieQueue.forEach(({ name, value, options }) => {
     response.cookies.set({
       name,
