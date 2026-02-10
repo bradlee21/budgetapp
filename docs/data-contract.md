@@ -270,3 +270,4 @@ All seeded records belong to the user (`user_id`).
 - Debt is structurally distinct from expenses
 - Manual entry first; automation later
 - Dashboards are derived, not primary
+d
